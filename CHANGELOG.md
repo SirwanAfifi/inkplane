@@ -5,6 +5,9 @@ All notable changes to Inkplane are documented here.
 ## 0.2.0 — 2026-07-16
 
 - Rebranded Ink Layer as Inkplane to reflect the new standalone infinite-canvas experience.
+- Stabilized Apple Pencil pressure samples to prevent segmented, pinched strokes in iPad WebViews.
+- Rebuilt the iPad toolbar as a compact touch palette with reliable icons and safe-area positioning.
+- Fixed malformed quadratic outline closure that produced triangular cuts inside Pencil strokes on WebKit.
 - Replaced Markdown note overlays with standalone `.inklayer` drawing files.
 - Added a dedicated edge-to-edge infinite canvas with Pencil drawing, one-finger pan, pinch zoom, trackpad navigation, and stroke-aware fit controls.
 - Added read-only Markdown embeds with configurable dimensions and an open-source drawing control.

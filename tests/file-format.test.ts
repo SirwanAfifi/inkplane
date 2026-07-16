@@ -50,4 +50,15 @@ describe(".inklayer file format", () => {
     expect(parsed.strokes).toEqual([]);
     expect(parsed).toMatchObject({ width: 1600, height: 1200 });
   });
+
+  it("repairs Safari Pencil samples stored out of chronological order", () => {
+    const parsed = parseDrawingFile(JSON.stringify({
+      strokes: [{
+        tool: "pen",
+        points: [[10, 0, 0.5, 0, 0, 10], [30, 0, 0.5, 0, 0, 30], [20, 0, 0.5, 0, 0, 20], [40, 0, 0.5, 0, 0, 40]]
+      }]
+    }));
+
+    expect(parsed.strokes[0].points.map((point) => point.x)).toEqual([10, 30, 40]);
+  });
 });

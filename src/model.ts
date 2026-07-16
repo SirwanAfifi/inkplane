@@ -66,6 +66,58 @@ export function cloneStrokes(strokes: InkStroke[]): InkStroke[] {
   }));
 }
 
+export function repairInkPointOrder(points: InkPoint[]): InkPoint[] {
+  const repaired: InkPoint[] = [];
+  let latestTime = Number.NEGATIVE_INFINITY;
+  for (const point of points) {
+    if (point.time < latestTime) continue;
+    const previous = repaired[repaired.length - 1];
+    if (
+      previous
+      && point.time === previous.time
+      && point.x === previous.x
+      && point.y === previous.y
+    ) continue;
+    repaired.push(point);
+    latestTime = point.time;
+  }
+  return repaired;
+}
+
+export function removeSharpBacktracks(points: InkPoint[], strokeWidth: number): InkPoint[] {
+  const cleaned = [...points];
+  const maximumShortLeg = Math.max(0.75, Math.min(3, strokeWidth));
+  let index = 1;
+  while (index < cleaned.length - 1) {
+    const previous = cleaned[index - 1];
+    const point = cleaned[index];
+    const next = cleaned[index + 1];
+    const incomingX = point.x - previous.x;
+    const incomingY = point.y - previous.y;
+    const outgoingX = next.x - point.x;
+    const outgoingY = next.y - point.y;
+    const incomingLength = Math.hypot(incomingX, incomingY);
+    const outgoingLength = Math.hypot(outgoingX, outgoingY);
+
+    if (incomingLength < 0.0001 || outgoingLength < 0.0001) {
+      cleaned.splice(incomingLength < outgoingLength ? index : index + 1, 1);
+      index = Math.max(1, index - 1);
+      continue;
+    }
+
+    const direction = (
+      incomingX * outgoingX + incomingY * outgoingY
+    ) / (incomingLength * outgoingLength);
+    if (direction < -0.35 && Math.min(incomingLength, outgoingLength) <= maximumShortLeg) {
+      cleaned.splice(incomingLength <= outgoingLength ? index : index + 1, 1);
+      index = Math.max(1, index - 1);
+      continue;
+    }
+    index += 1;
+  }
+  return cleaned;
+}
+
 export function simplifyPoints(points: InkPoint[], tolerance = 0.35): InkPoint[] {
   if (points.length <= 2) return points.map((point) => ({ ...point }));
 
