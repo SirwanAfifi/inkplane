@@ -1,9 +1,9 @@
 {
   "id": "ink-layer",
-  "name": "Ink Layer",
-  "version": "0.1.0",
+  "name": "Inkplane",
+  "version": "0.2.0",
   "minAppVersion": "1.7.2",
-  "description": "Pressure-sensitive handwriting and annotation layers designed for Apple Pencil and other pens.",
+  "description": "An infinite handwriting canvas with note embeds, designed for Apple Pencil and other pens.",
   "author": "Sirwan Afifi",
   "authorUrl": "https://github.com/SirwanAfifi",
   "isDesktopOnly": false

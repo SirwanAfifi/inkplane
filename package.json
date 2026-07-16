@@ -1,7 +1,7 @@
 {
-  "name": "ink-layer",
-  "version": "0.1.0",
-  "description": "Pencil-first, pressure-sensitive handwriting layers for Obsidian.",
+  "name": "inkplane",
+  "version": "0.2.0",
+  "description": "A Pencil-first infinite drawing canvas with embeds for Obsidian.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,18 +16,20 @@
   "keywords": [
     "obsidian",
     "apple-pencil",
+    "canvas",
     "handwriting",
+    "infinite-canvas",
     "ink"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SirwanAfifi/ink-layer.git"
+    "url": "git+https://github.com/SirwanAfifi/inkplane.git"
   },
   "bugs": {
-    "url": "https://github.com/SirwanAfifi/ink-layer/issues"
+    "url": "https://github.com/SirwanAfifi/inkplane/issues"
   },
-  "homepage": "https://github.com/SirwanAfifi/ink-layer#readme",
+  "homepage": "https://github.com/SirwanAfifi/inkplane#readme",
   "dependencies": {
     "perfect-freehand": "^1.2.3"
   },

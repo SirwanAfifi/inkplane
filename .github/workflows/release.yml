@@ -32,5 +32,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME"
           main.js manifest.json styles.css
           --verify-tag
-          --title "Ink Layer $GITHUB_REF_NAME"
+          --title "Inkplane $GITHUB_REF_NAME"
           --generate-notes

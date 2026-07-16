@@ -3,8 +3,9 @@ import { combinedBounds } from "./model";
 import type { Bounds, InkPoint, InkStroke, Point2D } from "./types";
 
 export interface InkRenderState {
-  scrollLeft: number;
-  scrollTop: number;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
   selectedIds: Set<string>;
   lassoPoints: Point2D[];
   eraserPoint: Point2D | null;
@@ -25,7 +26,7 @@ export class InkRenderer {
   ) {
     const dryContext = dryCanvas.getContext("2d");
     const wetContext = wetCanvas.getContext("2d");
-    if (!dryContext || !wetContext) throw new Error("Ink Layer requires Canvas 2D support.");
+    if (!dryContext || !wetContext) throw new Error("Inkplane requires Canvas 2D support.");
     this.dryContext = dryContext;
     this.wetContext = wetContext;
   }
@@ -74,11 +75,15 @@ export class InkRenderer {
     this.wetContext.restore();
   }
 
-  private prepareContext(context: CanvasRenderingContext2D, state: InkRenderState): void {
+  private prepareContext(
+    context: CanvasRenderingContext2D,
+    state: InkRenderState
+  ): void {
     context.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     context.clearRect(0, 0, this.cssWidth, this.cssHeight);
     context.save();
-    context.translate(-state.scrollLeft, -state.scrollTop);
+    context.translate(state.offsetX, state.offsetY);
+    context.scale(state.scale, state.scale);
   }
 
   private drawStroke(context: CanvasRenderingContext2D, stroke: InkStroke): void {

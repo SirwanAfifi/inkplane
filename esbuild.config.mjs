@@ -5,7 +5,7 @@ import builtins from "builtin-modules";
 const production = process.argv[2] === "production";
 
 const context = await esbuild.context({
-  banner: { js: "/* Ink Layer for Obsidian */" },
+  banner: { js: "/* Inkplane for Obsidian */" },
   entryPoints: ["src/main.ts"],
   bundle: true,
   external: ["obsidian", "electron", "@codemirror/*", "@lezer/*", ...builtins],
