@@ -1,4 +1,4 @@
-export type InkTool = "pen" | "highlighter" | "eraser" | "lasso";
+export type InkTool = "pen" | "highlighter" | "eraser" | "lasso" | "pan";
 export type StrokeTool = "pen" | "highlighter";
 
 export interface InkPoint {
@@ -26,6 +26,15 @@ export interface InkDocument {
   updatedAt: number;
 }
 
+export interface InkDrawing {
+  version: 1;
+  width: number;
+  height: number;
+  background: "paper";
+  strokes: InkStroke[];
+  updatedAt: number;
+}
+
 export interface InkSettings {
   penColor: string;
   penWidth: number;
@@ -36,8 +45,12 @@ export interface InkSettings {
   palmRejection: boolean;
   allowFingerDrawing: boolean;
   allowMouseDrawing: boolean;
-  showInkWhenInactive: boolean;
   toolbarPosition: "top" | "bottom";
+  drawingFolder: string;
+  defaultCanvasWidth: number;
+  defaultCanvasHeight: number;
+  defaultEmbedWidth: number;
+  defaultEmbedHeight: number;
 }
 
 export interface InkPluginData {
@@ -68,6 +81,10 @@ export const DEFAULT_SETTINGS: InkSettings = {
   palmRejection: true,
   allowFingerDrawing: false,
   allowMouseDrawing: true,
-  showInkWhenInactive: true,
-  toolbarPosition: "top"
+  toolbarPosition: "top",
+  drawingFolder: "Inkplane",
+  defaultCanvasWidth: 1600,
+  defaultCanvasHeight: 1200,
+  defaultEmbedWidth: 800,
+  defaultEmbedHeight: 600
 };

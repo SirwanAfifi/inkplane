@@ -1,237 +1,312 @@
-import { App, MarkdownView, Modal, Notice, Plugin, Setting, TFile, type WorkspaceLeaf } from "obsidian";
-import { InkController, type InkControllerCallbacks } from "./controller";
+import {
+  App,
+  FuzzySuggestModal,
+  MarkdownView,
+  Modal,
+  Notice,
+  Plugin,
+  Setting,
+  TFile
+} from "obsidian";
+import { DrawingRepository, INK_EXTENSION } from "./drawing-repository";
+import { InkEmbedManager } from "./embed-manager";
+import { emptyDrawing } from "./file-format";
+import { InkCanvasView, INK_VIEW_TYPE, type InkCanvasViewHost } from "./ink-view";
+import { combinedBounds } from "./model";
 import { InkSettingTab, type InkSettingsHost } from "./settings";
 import { InkStore } from "./storage";
 import type { InkTool } from "./types";
 
 export default class InkLayerPlugin
   extends Plugin
-  implements InkControllerCallbacks, InkSettingsHost
+  implements InkCanvasViewHost, InkSettingsHost
 {
   store!: InkStore;
-  private readonly controllers = new Map<WorkspaceLeaf, InkController>();
-  private inputActive = false;
+  private repository!: DrawingRepository;
+  private embedManager!: InkEmbedManager;
   private preferredTool: InkTool = "pen";
-  private changingActiveController = false;
-  private ribbonIcon: HTMLElement | null = null;
 
   async onload(): Promise<void> {
     this.store = new InkStore(this);
     await this.store.load();
+    this.repository = new DrawingRepository(this.app, () => this.store.settings);
+    this.embedManager = new InkEmbedManager(this.app, this.repository, () => this.store.settings);
 
-    this.ribbonIcon = this.addRibbonIcon("pen-tool", "Toggle ink mode", () => this.toggleInkMode());
+    this.registerView(INK_VIEW_TYPE, (leaf) => new InkCanvasView(leaf, this));
+    this.registerExtensions([INK_EXTENSION], INK_VIEW_TYPE);
+    this.registerMarkdownPostProcessor((element, context) => {
+      this.embedManager.scan(element, context.sourcePath);
+    });
+
+    this.addRibbonIcon("pen-tool", "New ink drawing", () => void this.createAndOpenDrawing());
     this.addSettingTab(new InkSettingTab(this.app, this));
     this.registerCommands();
 
     this.app.workspace.onLayoutReady(() => {
-      this.syncControllers();
-      this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.handleActiveLeafChange()));
-      this.registerEvent(this.app.workspace.on("file-open", () => this.reloadDocuments()));
-      this.registerEvent(this.app.workspace.on("layout-change", () => this.syncControllers()));
-      this.registerEvent(this.app.workspace.on("resize", () => this.refreshControllers()));
-      this.registerEvent(
-        this.app.vault.on("rename", (file, oldPath) => {
-          if (file instanceof TFile) {
-            this.store.renameDocument(oldPath, file.path);
-            this.reloadDocuments();
-          }
-        })
-      );
+      this.embedManager.start();
+      this.registerEvent(this.app.workspace.on("layout-change", () => {
+        this.embedManager.scan(this.app.workspace.containerEl, "");
+      }));
+      this.registerEvent(this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile && file.extension.toLowerCase() === INK_EXTENSION) {
+          this.embedManager.refresh(file);
+        }
+      }));
+      this.registerEvent(this.app.vault.on("create", (file) => {
+        if (file instanceof TFile && file.extension.toLowerCase() === INK_EXTENSION) {
+          this.embedManager.scan(this.app.workspace.containerEl, "");
+        }
+      }));
+      this.registerEvent(this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile && file.extension.toLowerCase() === INK_EXTENSION) {
+          this.embedManager.refresh(file);
+        }
+      }));
+      this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+        if (!(file instanceof TFile)) return;
+        if (file.extension.toLowerCase() === INK_EXTENSION) this.embedManager.refresh();
+        else this.store.renameDocument(oldPath, file.path);
+      }));
     });
+
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (document.visibilityState === "hidden") void this.flushOpenDrawings();
+    });
+    this.registerDomEvent(window, "pagehide", () => void this.flushOpenDrawings());
   }
 
   async onunload(): Promise<void> {
-    for (const controller of this.controllers.values()) controller.destroy();
-    this.controllers.clear();
+    await this.flushOpenDrawings();
+    this.embedManager.destroy();
     await this.store.dispose();
   }
 
-  onActiveChange(controller: InkController, active: boolean): void {
-    if (this.changingActiveController) return;
-    if (active) {
-      this.inputActive = true;
-      this.changingActiveController = true;
-      for (const candidate of this.controllers.values()) {
-        if (candidate !== controller) candidate.setActive(false);
-      }
-      this.changingActiveController = false;
-    } else if (this.activeController() === controller || !this.anyControllerActive()) {
-      this.inputActive = false;
-    }
-    this.updateRibbon();
-  }
-
-  onToolChange(_controller: InkController, tool: InkTool): void {
+  onCanvasToolChange(tool: InkTool): void {
     this.preferredTool = tool;
   }
 
-  onDocumentChange(source: InkController, notePath: string): void {
-    for (const controller of this.controllers.values()) {
-      if (controller !== source) controller.refreshDocumentFromStore(notePath);
+  refreshInkUI(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(INK_VIEW_TYPE)) {
+      if (leaf.view instanceof InkCanvasView) leaf.view.refreshSettings();
     }
-  }
-
-  refreshControllers(): void {
-    for (const controller of this.controllers.values()) controller.refreshSettings();
+    this.embedManager.refreshSettings();
   }
 
   private registerCommands(): void {
     this.addCommand({
-      id: "toggle-ink-mode",
-      name: "Toggle ink mode",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => controller.toggleActive())
+      id: "new-drawing",
+      name: "Create new drawing",
+      callback: () => void this.createAndOpenDrawing()
+    });
+    this.addCommand({
+      id: "insert-new-drawing",
+      name: "Insert new drawing in current note",
+      checkCallback: (checking) => this.withMarkdownView(checking, (view) => void this.createInsertAndOpen(view))
+    });
+    this.addCommand({
+      id: "insert-existing-drawing",
+      name: "Insert existing drawing in current note",
+      checkCallback: (checking) => this.withMarkdownView(checking, (view) => {
+        const files = this.repository.drawingFiles();
+        if (files.length === 0) {
+          new Notice("Create an ink drawing first.");
+          return;
+        }
+        new DrawingSuggestModal(this.app, files, (file) => this.insertEmbed(view, file)).open();
+      })
+    });
+    this.addCommand({
+      id: "convert-legacy-note-ink",
+      name: "Convert legacy ink from current note to a drawing",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const path = view?.file?.path ?? "";
+        const available = Boolean(view && path && this.store.hasInk(path));
+        if (!checking && view && available) void this.convertLegacyInk(view);
+        return available;
+      }
     });
     this.addCommand({
       id: "select-pen",
       name: "Select pen",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => this.activateTool(controller, "pen"))
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.setTool("pen"))
     });
     this.addCommand({
       id: "select-highlighter",
       name: "Select highlighter",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => this.activateTool(controller, "highlighter"))
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.setTool("highlighter"))
     });
     this.addCommand({
       id: "select-eraser",
       name: "Select eraser",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => this.activateTool(controller, "eraser"))
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.setTool("eraser"))
     });
     this.addCommand({
       id: "select-lasso",
       name: "Select lasso",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => this.activateTool(controller, "lasso"))
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.setTool("lasso"))
+    });
+    this.addCommand({
+      id: "select-pan",
+      name: "Select pan tool",
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.setTool("pan"))
     });
     this.addCommand({
       id: "toggle-pen-eraser",
       name: "Switch between pen and eraser",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => {
-        this.activateTool(controller, controller.currentTool === "eraser" ? "pen" : "eraser");
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => {
+        view.setTool(view.currentTool === "eraser" ? "pen" : "eraser");
       })
     });
     this.addCommand({
       id: "undo-ink",
       name: "Undo ink",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => controller.undo())
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.undo())
     });
     this.addCommand({
       id: "redo-ink",
       name: "Redo ink",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => controller.redo())
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.redo())
     });
     this.addCommand({
-      id: "clear-note-ink",
-      name: "Clear ink from current note",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => {
-        if (controller.hasInk) new ClearInkModal(this.app, () => controller.clearAll()).open();
+      id: "fit-drawing",
+      name: "Fit drawing to view",
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => view.fitToView())
+    });
+    this.addCommand({
+      id: "clear-drawing",
+      name: "Clear current drawing",
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => {
+        if (view.hasInk) new ClearInkModal(this.app, () => view.clearInk()).open();
       })
     });
     this.addCommand({
-      id: "export-note-ink-svg",
-      name: "Export current ink as SVG",
-      checkCallback: (checking) => this.withMarkdownController(checking, (controller) => {
-        if (controller.hasInk) void this.exportSvg(controller);
+      id: "export-drawing-svg",
+      name: "Export current drawing as SVG",
+      checkCallback: (checking) => this.withCanvasView(checking, (view) => {
+        if (view.hasInk) void this.exportSvg(view);
       })
     });
   }
 
-  private withMarkdownController(checking: boolean, action: (controller: InkController) => void): boolean {
-    const controller = this.ensureActiveController();
-    const available = controller !== null && controller.notePath.length > 0;
-    if (!checking && controller && available) action(controller);
+  private withCanvasView(checking: boolean, action: (view: InkCanvasView) => void): boolean {
+    const view = this.app.workspace.getActiveViewOfType(InkCanvasView);
+    if (!checking && view) action(view);
+    return view !== null;
+  }
+
+  private withMarkdownView(checking: boolean, action: (view: MarkdownView) => void): boolean {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const available = Boolean(view?.file);
+    if (!checking && view && available) action(view);
     return available;
   }
 
-  private activateTool(controller: InkController, tool: InkTool): void {
-    controller.setTool(tool);
-    controller.setActive(true);
-  }
-
-  private toggleInkMode(): void {
-    const controller = this.ensureActiveController();
-    if (!controller || controller.notePath.length === 0) {
-      new Notice("Open a Markdown note to use Ink Layer.");
-      return;
-    }
-    controller.toggleActive();
-  }
-
-  private handleActiveLeafChange(): void {
-    this.syncControllers();
-    if (!this.inputActive) return;
-    const active = this.ensureActiveController();
-    this.changingActiveController = true;
-    for (const controller of this.controllers.values()) {
-      const shouldActivate = controller === active;
-      if (shouldActivate) controller.setTool(this.preferredTool);
-      controller.setActive(shouldActivate);
-    }
-    this.changingActiveController = false;
-    if (!active) this.inputActive = false;
-    this.updateRibbon();
-  }
-
-  private syncControllers(): void {
-    const liveLeaves = new Set(this.app.workspace.getLeavesOfType("markdown"));
-    for (const leaf of liveLeaves) {
-      if (!(leaf.view instanceof MarkdownView) || this.controllers.has(leaf)) continue;
-      this.controllers.set(leaf, new InkController(leaf.view, this.store, this));
-    }
-    for (const [leaf, controller] of this.controllers) {
-      if (liveLeaves.has(leaf) && leaf.view instanceof MarkdownView) continue;
-      controller.destroy();
-      this.controllers.delete(leaf);
-    }
-    this.reloadDocuments();
-  }
-
-  private reloadDocuments(): void {
-    for (const controller of this.controllers.values()) controller.reloadDocument();
-  }
-
-  private ensureActiveController(): InkController | null {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return null;
-    let controller = this.controllers.get(view.leaf);
-    if (!controller) {
-      controller = new InkController(view, this.store, this);
-      this.controllers.set(view.leaf, controller);
-    }
-    controller.reloadDocument();
-    return controller;
-  }
-
-  private activeController(): InkController | null {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    return view ? this.controllers.get(view.leaf) ?? null : null;
-  }
-
-  private anyControllerActive(): boolean {
-    for (const controller of this.controllers.values()) {
-      if (controller.isActive) return true;
-    }
-    return false;
-  }
-
-  private updateRibbon(): void {
-    this.ribbonIcon?.classList.toggle("is-active", this.inputActive);
-    this.ribbonIcon?.setAttribute("aria-pressed", this.inputActive ? "true" : "false");
-  }
-
-  private async exportSvg(controller: InkController): Promise<void> {
-    const svg = controller.exportSvg();
-    const file = controller.view.file;
-    if (!svg || !file) return;
+  private async createAndOpenDrawing(): Promise<void> {
     try {
-      const exportPath = await this.app.fileManager.getAvailablePathForAttachment(
-        `${file.basename}.ink.svg`,
-        file.path
-      );
-      const exportedFile = await this.app.vault.create(exportPath, svg);
-      new Notice(`Exported ink to ${exportedFile.path}`);
+      const file = await this.repository.create(timestampedTitle());
+      await this.repository.open(file);
+      const view = this.app.workspace.getActiveViewOfType(InkCanvasView);
+      view?.setTool(this.preferredTool);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      new Notice(`Could not export ink: ${message}`);
+      this.showError("Could not create drawing", error);
     }
+  }
+
+  private async createInsertAndOpen(markdownView: MarkdownView): Promise<void> {
+    try {
+      const title = markdownView.file ? `${markdownView.file.basename} drawing` : timestampedTitle();
+      const file = await this.repository.create(title);
+      this.insertEmbed(markdownView, file);
+      await this.repository.open(file, true);
+      const view = this.app.workspace.getActiveViewOfType(InkCanvasView);
+      view?.setTool(this.preferredTool);
+    } catch (error) {
+      this.showError("Could not insert drawing", error);
+    }
+  }
+
+  private insertEmbed(view: MarkdownView, file: TFile): void {
+    const settings = this.store.settings;
+    const embed = `![[${file.path}|${settings.defaultEmbedWidth}x${settings.defaultEmbedHeight}]]`;
+    view.editor.replaceSelection(embed);
+    new Notice(`Inserted ${file.basename}`);
+  }
+
+  private async convertLegacyInk(view: MarkdownView): Promise<void> {
+    const file = view.file;
+    if (!file) return;
+    const legacy = this.store.getDocument(file.path);
+    if (legacy.strokes.length === 0) return;
+    const drawing = emptyDrawing(
+      this.store.settings.defaultCanvasWidth,
+      this.store.settings.defaultCanvasHeight
+    );
+    drawing.strokes = legacy.strokes;
+    drawing.updatedAt = legacy.updatedAt;
+    const bounds = combinedBounds(drawing.strokes);
+    if (bounds) {
+      drawing.width = Math.max(drawing.width, Math.ceil(bounds.maxX + 64));
+      drawing.height = Math.max(drawing.height, Math.ceil(bounds.maxY + 64));
+    }
+    try {
+      const drawingFile = await this.repository.create(`${file.basename} legacy ink`, drawing);
+      this.insertEmbed(view, drawingFile);
+      await this.repository.open(drawingFile, true);
+      new Notice("Legacy ink was copied into a standalone drawing. The original backup remains in plugin data.");
+    } catch (error) {
+      this.showError("Could not convert legacy ink", error);
+    }
+  }
+
+  private async exportSvg(view: InkCanvasView): Promise<void> {
+    const svg = view.exportSvg();
+    const source = view.file;
+    if (!svg || !source) return;
+    try {
+      const path = await this.app.fileManager.getAvailablePathForAttachment(`${source.basename}.svg`, source.path);
+      const exported = await this.app.vault.create(path, svg);
+      new Notice(`Exported drawing to ${exported.path}`);
+    } catch (error) {
+      this.showError("Could not export drawing", error);
+    }
+  }
+
+  private async flushOpenDrawings(): Promise<void> {
+    const saves: Promise<void>[] = [];
+    for (const leaf of this.app.workspace.getLeavesOfType(INK_VIEW_TYPE)) {
+      if (leaf.view instanceof InkCanvasView) saves.push(leaf.view.save());
+    }
+    await Promise.allSettled(saves);
+    await this.store.flush();
+  }
+
+  private showError(context: string, error: unknown): void {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    new Notice(`${context}: ${message}`);
+  }
+}
+
+class DrawingSuggestModal extends FuzzySuggestModal<TFile> {
+  constructor(
+    app: App,
+    private readonly files: TFile[],
+    private readonly onChoose: (file: TFile) => void
+  ) {
+    super(app);
+    this.setPlaceholder("Choose an ink drawing…");
+  }
+
+  getItems(): TFile[] {
+    return this.files;
+  }
+
+  getItemText(file: TFile): string {
+    return file.path;
+  }
+
+  onChooseItem(file: TFile): void {
+    this.onChoose(file);
   }
 }
 
@@ -241,24 +316,28 @@ class ClearInkModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.textContent = "Clear ink from this note?";
-    const description = document.createElement("p");
-    description.textContent = "This removes every ink stroke from the current note. You can undo it while the note remains open.";
+    this.titleEl.textContent = "Clear this drawing?";
+    const description = this.contentEl.ownerDocument.createElement("p");
+    description.textContent = "This removes every stroke. You can undo it while the drawing remains open.";
     this.contentEl.appendChild(description);
     new Setting(this.contentEl)
       .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()))
-      .addButton((button) =>
-        button
-          .setButtonText("Clear ink")
-          .setWarning()
-          .onClick(() => {
-            this.onConfirm();
-            this.close();
-          })
-      );
+      .addButton((button) => button
+        .setButtonText("Clear drawing")
+        .setWarning()
+        .onClick(() => {
+          this.onConfirm();
+          this.close();
+        }));
   }
 
   onClose(): void {
     this.contentEl.replaceChildren();
   }
+}
+
+function timestampedTitle(): string {
+  const date = new Date();
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `Drawing ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}-${pad(date.getMinutes())}`;
 }

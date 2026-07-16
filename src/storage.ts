@@ -146,8 +146,32 @@ function sanitizeSettings(value: Record<string, unknown> | InkSettings): InkSett
     palmRejection: booleanOr(value.palmRejection, DEFAULT_SETTINGS.palmRejection),
     allowFingerDrawing: booleanOr(value.allowFingerDrawing, DEFAULT_SETTINGS.allowFingerDrawing),
     allowMouseDrawing: booleanOr(value.allowMouseDrawing, DEFAULT_SETTINGS.allowMouseDrawing),
-    showInkWhenInactive: booleanOr(value.showInkWhenInactive, DEFAULT_SETTINGS.showInkWhenInactive),
-    toolbarPosition: value.toolbarPosition === "bottom" ? "bottom" : "top"
+    toolbarPosition: value.toolbarPosition === "bottom" ? "bottom" : "top",
+    drawingFolder: stringOr(value.drawingFolder, DEFAULT_SETTINGS.drawingFolder),
+    defaultCanvasWidth: numberInRange(
+      value.defaultCanvasWidth,
+      DEFAULT_SETTINGS.defaultCanvasWidth,
+      320,
+      12000
+    ),
+    defaultCanvasHeight: numberInRange(
+      value.defaultCanvasHeight,
+      DEFAULT_SETTINGS.defaultCanvasHeight,
+      320,
+      12000
+    ),
+    defaultEmbedWidth: numberInRange(
+      value.defaultEmbedWidth,
+      DEFAULT_SETTINGS.defaultEmbedWidth,
+      240,
+      2400
+    ),
+    defaultEmbedHeight: numberInRange(
+      value.defaultEmbedHeight,
+      DEFAULT_SETTINGS.defaultEmbedHeight,
+      180,
+      1800
+    )
   };
 }
 

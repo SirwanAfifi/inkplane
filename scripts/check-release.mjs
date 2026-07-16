@@ -2,13 +2,26 @@ import { access, readFile } from "node:fs/promises";
 import process from "node:process";
 
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+const packageLock = JSON.parse(await readFile("package-lock.json", "utf8"));
 const manifest = JSON.parse(await readFile("manifest.json", "utf8"));
 const versions = JSON.parse(await readFile("versions.json", "utf8"));
 const requestedTag = process.argv[2];
 const errors = [];
 
+if (manifest.id !== "ink-layer") {
+  errors.push(`manifest id must remain ink-layer for update compatibility: ${manifest.id}`);
+}
+if (manifest.name !== "Inkplane") {
+  errors.push(`manifest name must be Inkplane: ${manifest.name}`);
+}
+if (packageJson.name !== "inkplane" || packageLock.name !== "inkplane" || packageLock.packages?.[""]?.name !== "inkplane") {
+  errors.push("package metadata must use the Inkplane brand");
+}
 if (packageJson.version !== manifest.version) {
   errors.push(`package.json is ${packageJson.version}, but manifest.json is ${manifest.version}`);
+}
+if (packageLock.version !== manifest.version || packageLock.packages?.[""]?.version !== manifest.version) {
+  errors.push(`package-lock.json does not match ${manifest.version}`);
 }
 if (versions[manifest.version] !== manifest.minAppVersion) {
   errors.push(
