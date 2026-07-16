@@ -1,0 +1,134 @@
+.ink-layer-host {
+  position: relative;
+}
+
+.ink-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ink-layer.is-visible {
+  visibility: visible;
+}
+
+.ink-layer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ink-layer-toolbar {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top));
+  left: 50%;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  padding: 5px;
+  overflow-x: auto;
+  color: var(--text-normal);
+  background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-s);
+  transform: translateX(-50%);
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.ink-layer-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.ink-layer.is-active .ink-layer-toolbar {
+  display: flex;
+}
+
+.ink-layer.toolbar-at-bottom .ink-layer-toolbar {
+  top: auto;
+  bottom: max(10px, env(safe-area-inset-bottom));
+}
+
+.ink-layer-tool {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+}
+
+.ink-layer-tool:hover,
+.ink-layer-tool:focus-visible {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.ink-layer-tool.is-selected {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.ink-layer-tool:disabled {
+  opacity: 0.35;
+}
+
+.ink-layer-tool svg {
+  width: 19px;
+  height: 19px;
+}
+
+.ink-layer-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: var(--background-modifier-border);
+}
+
+.ink-layer-input-active {
+  cursor: crosshair;
+}
+
+.workspace-ribbon .clickable-icon.is-active,
+.mobile-navbar-action.is-active {
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+@media (max-width: 600px) {
+  .ink-layer-toolbar {
+    gap: 3px;
+    padding: 6px;
+  }
+
+  .ink-layer-tool {
+    width: 42px;
+    height: 42px;
+  }
+
+  .ink-layer-tool svg {
+    width: 21px;
+    height: 21px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .ink-layer-toolbar {
+    background: var(--background-primary);
+  }
+}

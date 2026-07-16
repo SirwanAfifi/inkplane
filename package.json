@@ -1,0 +1,43 @@
+{
+  "name": "ink-layer",
+  "version": "0.1.0",
+  "description": "Pencil-first, pressure-sensitive handwriting layers for Obsidian.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate:release": "node scripts/check-release.mjs",
+    "check": "npm run test && npm run build && npm run validate:release",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
+  },
+  "keywords": [
+    "obsidian",
+    "apple-pencil",
+    "handwriting",
+    "ink"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SirwanAfifi/ink-layer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SirwanAfifi/ink-layer/issues"
+  },
+  "homepage": "https://github.com/SirwanAfifi/ink-layer#readme",
+  "dependencies": {
+    "perfect-freehand": "^1.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.28.1",
+    "obsidian": "^1.13.1",
+    "tslib": "^2.8.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

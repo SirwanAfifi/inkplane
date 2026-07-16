@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Test and build
+        run: npm run check
+      - name: Validate tag
+        run: node scripts/check-release.mjs "$GITHUB_REF_NAME"
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          main.js manifest.json styles.css
+          --verify-tag
+          --title "Ink Layer $GITHUB_REF_NAME"
+          --generate-notes
