@@ -1,4 +1,4 @@
-import { cloneStrokes, createInkPoint } from "./model";
+import { cloneStrokes, createInkPoint, repairInkPointOrder } from "./model";
 import type { InkDrawing, InkStroke } from "./types";
 
 const MIN_CANVAS_SIZE = 320;
@@ -54,7 +54,7 @@ export function serializeDrawingFile(drawing: InkDrawing): string {
       color: stroke.color,
       width: round(stroke.width, 2),
       opacity: round(stroke.opacity, 3),
-      points: stroke.points.map((point) => [
+      points: repairInkPointOrder(stroke.points).map((point) => [
         round(point.x, 2),
         round(point.y, 2),
         round(point.pressure, 3),
@@ -72,10 +72,10 @@ function parseStrokes(value: unknown): InkStroke[] {
     if (!isRecord(rawStroke) || !Array.isArray(rawStroke.points)) return [];
     const tool = rawStroke.tool === "highlighter" ? "highlighter" : rawStroke.tool === "pen" ? "pen" : null;
     if (!tool) return [];
-    const points = rawStroke.points.flatMap((rawPoint) => {
+    const points = repairInkPointOrder(rawStroke.points.flatMap((rawPoint) => {
       const point = parsePoint(rawPoint);
       return point ? [point] : [];
-    });
+    }));
     if (points.length === 0) return [];
     return [{
       id: typeof rawStroke.id === "string" && rawStroke.id.length > 0

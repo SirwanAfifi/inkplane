@@ -1,5 +1,11 @@
 import { getStroke } from "perfect-freehand";
-import { combinedBounds } from "./model";
+import {
+  combinedBounds,
+  removeSharpBacktracks,
+  repairInkPointOrder,
+  simplifyPoints
+} from "./model";
+import { stabilizedStrokePressures } from "./pressure";
 import type { Bounds, InkPoint, InkStroke, Point2D } from "./types";
 
 export interface InkRenderState {
@@ -89,26 +95,32 @@ export class InkRenderer {
   private drawStroke(context: CanvasRenderingContext2D, stroke: InkStroke): void {
     if (stroke.points.length === 0) return;
     const color = resolveInkColor(stroke.color, this.themeElement);
-    const freehandPoints = stroke.points.map((point) => [
-      point.x,
-      point.y,
-      normalizedPressure(point)
-    ] as [number, number, number]);
-    const outline = getStroke(freehandPoints, {
-      size: stroke.width,
-      thinning: stroke.tool === "pen" ? 0.68 : 0,
-      smoothing: stroke.tool === "pen" ? 0.62 : 0.72,
-      streamline: stroke.tool === "pen" ? 0.38 : 0.5,
-      simulatePressure: false,
-      start: { cap: true, taper: 0 },
-      end: { cap: true, taper: 0 }
-    });
-    if (outline.length === 0) return;
+    const points = renderableStrokePoints(stroke);
+    const pressures = stabilizedStrokePressures(points);
 
     context.save();
     context.globalAlpha = stroke.opacity;
+    context.strokeStyle = color;
     context.fillStyle = color;
-    context.fill(new Path2D(svgPathFromOutline(outline)));
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    if (points.length === 1) {
+      const width = stroke.tool === "pen"
+        ? pressureAdjustedWidth(stroke.width, pressures[0])
+        : stroke.width;
+      context.beginPath();
+      context.arc(points[0].x, points[0].y, width / 2, 0, Math.PI * 2);
+      context.fill();
+    } else if (stroke.tool === "highlighter") {
+      context.lineWidth = stroke.width;
+      traceCenterline(context, points);
+      context.stroke();
+    } else {
+      const averagePressure = pressures.reduce((total, pressure) => total + pressure, 0) / pressures.length;
+      context.lineWidth = pressureAdjustedWidth(stroke.width, averagePressure);
+      traceCenterline(context, points);
+      context.stroke();
+    }
     context.restore();
   }
 
@@ -176,6 +188,12 @@ export function resolveInkColor(color: string, element: HTMLElement): string {
   return color;
 }
 
+export function pressureAdjustedWidth(width: number, pressure: number): number {
+  const thinning = 0.52;
+  const normalizedPressure = Math.min(1, Math.max(0.05, pressure));
+  return Math.max(0.1, width * 2 * (0.5 - thinning * (0.5 - normalizedPressure)));
+}
+
 export function exportStrokesToSvg(strokes: InkStroke[], themeElement: HTMLElement): string | null {
   const bounds = combinedBounds(strokes);
   if (!bounds) return null;
@@ -186,18 +204,7 @@ export function exportStrokesToSvg(strokes: InkStroke[], themeElement: HTMLEleme
   const height = Math.max(1, Math.ceil(bounds.maxY - bounds.minY + padding * 2));
   const paths = strokes.flatMap((stroke) => {
     if (stroke.points.length === 0) return [];
-    const outline = getStroke(
-      stroke.points.map((point) => [point.x, point.y, normalizedPressure(point)] as [number, number, number]),
-      {
-        size: stroke.width,
-        thinning: stroke.tool === "pen" ? 0.68 : 0,
-        smoothing: stroke.tool === "pen" ? 0.62 : 0.72,
-        streamline: stroke.tool === "pen" ? 0.38 : 0.5,
-        simulatePressure: false,
-        start: { cap: true, taper: 0 },
-        end: { cap: true, taper: 0 }
-      }
-    );
+    const outline = createStrokeOutline(stroke);
     if (outline.length === 0) return [];
     const color = escapeXml(resolveInkColor(stroke.color, themeElement));
     const path = escapeXml(svgPathFromOutline(outline));
@@ -215,25 +222,54 @@ export function exportStrokesToSvg(strokes: InkStroke[], themeElement: HTMLEleme
 export function svgPathFromOutline(points: number[][]): string {
   if (points.length === 0) return "";
   const first = points[0];
-  if (points.length === 1) {
-    return `M ${first[0]} ${first[1]} Z`;
+  if (points.length === 1) return `M ${first[0].toFixed(2)} ${first[1].toFixed(2)} Z`;
+  const last = points[points.length - 1];
+  let path = `M ${((last[0] + first[0]) / 2).toFixed(2)} ${((last[1] + first[1]) / 2).toFixed(2)}`;
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const next = points[(index + 1) % points.length];
+    path += ` Q ${point[0].toFixed(2)} ${point[1].toFixed(2)} ${((point[0] + next[0]) / 2).toFixed(2)} ${((point[1] + next[1]) / 2).toFixed(2)}`;
   }
+  return `${path} Z`;
+}
 
-  let path = `M ${first[0].toFixed(2)} ${first[1].toFixed(2)} Q`;
+function createStrokeOutline(stroke: InkStroke): number[][] {
+  const orderedPoints = renderableStrokePoints(stroke);
+  const pressures = stabilizedStrokePressures(orderedPoints);
+  const points = orderedPoints.map((point, index) => [
+    point.x,
+    point.y,
+    pressures[index]
+  ] as [number, number, number]);
+  return getStroke(points, {
+    size: stroke.width,
+    thinning: stroke.tool === "pen" ? 0.52 : 0,
+    smoothing: stroke.tool === "pen" ? 0.7 : 0.72,
+    streamline: stroke.tool === "pen" ? 0.42 : 0.5,
+    simulatePressure: false,
+    start: { cap: true, taper: 0 },
+    end: { cap: true, taper: 0 }
+  });
+}
+
+function renderableStrokePoints(stroke: InkStroke): InkPoint[] {
+  const repaired = removeSharpBacktracks(repairInkPointOrder(stroke.points), stroke.width);
+  const tolerance = stroke.tool === "pen"
+    ? Math.max(0.45, Math.min(1.5, stroke.width * 0.42))
+    : 0.45;
+  return simplifyPoints(repaired, tolerance);
+}
+
+function traceCenterline(context: CanvasRenderingContext2D, points: InkPoint[]): void {
+  context.beginPath();
+  context.moveTo(points[0].x, points[0].y);
   for (let index = 1; index < points.length - 1; index += 1) {
     const point = points[index];
     const next = points[index + 1];
-    const midX = (point[0] + next[0]) / 2;
-    const midY = (point[1] + next[1]) / 2;
-    path += ` ${point[0].toFixed(2)} ${point[1].toFixed(2)} ${midX.toFixed(2)} ${midY.toFixed(2)}`;
+    context.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
   }
   const last = points[points.length - 1];
-  return `${path} ${last[0].toFixed(2)} ${last[1].toFixed(2)} Z`;
-}
-
-function normalizedPressure(point: InkPoint): number {
-  if (point.pressure <= 0) return 0.12;
-  return Math.max(0.05, Math.min(1, point.pressure));
+  context.quadraticCurveTo(last.x, last.y, last.x, last.y);
 }
 
 function resolveThemeColor(variable: string, element: HTMLElement, fallback: string): string {

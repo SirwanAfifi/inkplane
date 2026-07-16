@@ -50,21 +50,22 @@
 .ink-layer-toolbar {
   position: absolute;
   z-index: 6;
-  top: max(10px, env(safe-area-inset-top));
+  top: 8px;
   left: 50%;
   display: flex;
   align-items: center;
-  gap: 5px;
-  max-width: calc(100% - 24px);
-  padding: 5px;
+  gap: 0;
+  max-width: calc(100% - 20px);
+  padding: 4px;
   overflow-x: auto;
   color: var(--text-normal);
-  background: color-mix(in srgb, var(--background-primary) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 82%, transparent);
-  border-radius: calc(var(--radius-l) + 2px);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 13%), inset 0 1px 0 rgb(255 255 255 / 6%);
+  background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 76%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 16%), inset 0 1px 0 rgb(255 255 255 / 7%);
   transform: translateX(-50%);
   backdrop-filter: blur(18px) saturate(1.25);
+  isolation: isolate;
   pointer-events: auto;
   touch-action: manipulation;
   -webkit-overflow-scrolling: touch;
@@ -77,29 +78,49 @@
 
 .ink-canvas-view.toolbar-at-bottom .ink-layer-toolbar {
   top: auto;
-  bottom: max(10px, env(safe-area-inset-bottom));
+  bottom: calc(env(safe-area-inset-bottom) + 8px);
 }
 
 .ink-toolbar-group {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 1px;
-  padding: 2px;
-  background: color-mix(in srgb, var(--background-modifier-hover) 58%, transparent);
-  border: 1px solid color-mix(in srgb, var(--background-modifier-border) 48%, transparent);
-  border-radius: var(--radius-m);
+  gap: 2px;
+  padding: 0;
+}
+
+.ink-toolbar-group + .ink-toolbar-group {
+  margin-left: 5px;
+  padding-left: 6px;
+}
+
+.ink-toolbar-group + .ink-toolbar-group::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 1px;
+  background: var(--background-modifier-border);
+  opacity: 0.72;
+  content: "";
 }
 
 .ink-layer-tool {
+  --icon-color: currentColor;
+  --icon-color-hover: currentColor;
+  --icon-size: 20px;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
   padding: 0;
   color: var(--text-muted);
+  appearance: none;
   background: transparent;
   border: 0;
   border-radius: var(--radius-s);
@@ -127,9 +148,35 @@
   opacity: 0.35;
 }
 
-.ink-layer-tool svg {
-  width: 19px;
-  height: 19px;
+.ink-layer-tool svg,
+.ink-layer-tool .svg-icon {
+  display: block !important;
+  flex: 0 0 auto;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  color: inherit !important;
+  stroke: currentColor !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.ink-layer-tool svg path,
+.ink-layer-tool svg line,
+.ink-layer-tool svg polyline,
+.ink-layer-tool svg polygon,
+.ink-layer-tool svg circle,
+.ink-layer-tool svg rect {
+  stroke: currentColor !important;
+}
+
+.ink-tool-glyph {
+  display: block;
+  color: currentColor;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 1;
 }
 
 .ink-tool-style {
@@ -259,10 +306,10 @@
 .ink-tool-inspector {
   position: absolute;
   z-index: 7;
-  top: calc(env(safe-area-inset-top) + 64px);
+  top: 60px;
   left: 50%;
   width: min(344px, calc(100% - 24px));
-  max-height: calc(100% - env(safe-area-inset-top) - 84px);
+  max-height: calc(100% - 78px);
   padding: 14px;
   overflow-y: auto;
   color: var(--text-normal);
@@ -573,35 +620,34 @@
   }
 }
 
-@media (max-width: 600px) {
+@media (hover: none), (pointer: coarse) {
   .ink-layer-toolbar {
-    gap: 3px;
-    padding: 5px;
-  }
-
-  .ink-toolbar-group {
-    padding: 2px;
+    max-width: calc(100% - 16px);
   }
 
   .ink-layer-tool {
-    width: 42px;
-    height: 42px;
+    --icon-size: 22px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
   }
 
   .ink-layer-zoom {
     width: auto;
-    min-width: 54px;
+    min-width: 58px;
   }
+}
 
-  .ink-layer-tool svg {
-    width: 21px;
-    height: 21px;
+@media (max-width: 600px) {
+  .ink-layer-toolbar {
+    border-radius: 14px;
   }
 
   .ink-tool-inspector {
-    top: calc(env(safe-area-inset-top) + 68px);
+    top: 68px;
     width: calc(100% - 20px);
-    max-height: calc(100% - env(safe-area-inset-top) - 82px);
+    max-height: calc(100% - 86px);
     padding: 16px;
     border-radius: calc(var(--radius-l) + 6px);
   }

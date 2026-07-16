@@ -7,10 +7,13 @@ import {
   createStroke,
   hitTestStroke,
   pointInBounds,
+  removeSharpBacktracks,
   selectStrokesInPolygon,
   simplifyPoints,
   translateStrokes
 } from "./model";
+import { applyPressureSensitivity, stabilizePointerPressure } from "./pressure";
+import { coalescedEvents } from "./pointer-samples";
 import { exportStrokesToSvg, InkRenderer, type InkRenderState } from "./render";
 import type { InkStore } from "./storage";
 import { ToolInspector, toolColor, toolWidth } from "./tool-inspector";
@@ -57,6 +60,7 @@ export class DrawingSurface {
   private eraserPoint: Point2D | null = null;
   private activePointerId: number | null = null;
   private activePointerType = "";
+  private activeRawPressure: number | null = null;
   private gestureMode: GestureMode = null;
   private gestureBefore: InkStroke[] | null = null;
   private gestureChanged = false;
@@ -346,10 +350,21 @@ export class DrawingSurface {
   ): HTMLButtonElement {
     const button = this.toolbar.ownerDocument.createElement("button");
     button.type = "button";
-    button.className = "ink-layer-tool";
+    button.className = "ink-layer-tool clickable-icon";
     button.setAttribute("aria-label", label);
     button.setAttribute("title", label);
-    setIcon(button, icon);
+    try {
+      setIcon(button, icon);
+    } catch {
+      // Older mobile Obsidian builds can lack newer Lucide icon identifiers.
+    }
+    if (!button.querySelector("svg")) {
+      const fallback = this.toolbar.ownerDocument.createElement("span");
+      fallback.className = "ink-tool-glyph";
+      fallback.textContent = fallbackIcon(icon);
+      fallback.setAttribute("aria-hidden", "true");
+      button.appendChild(fallback);
+    }
     button.addEventListener("click", (event) => {
       consumeEvent(event);
       action(event);
@@ -418,6 +433,7 @@ export class DrawingSurface {
     const gestureTool = isEraserButton(event) ? "eraser" : this.tool;
     if (gestureTool === "pen" || gestureTool === "highlighter") {
       this.gestureMode = "draw";
+      this.activeRawPressure = null;
       this.selectedIds.clear();
       this.draft = createStroke(
         gestureTool,
@@ -504,8 +520,15 @@ export class DrawingSurface {
     consumeEvent(event);
 
     if (this.gestureMode === "draw" && this.draft) {
-      this.appendDraftPoint(this.eventToInkPoint(event));
-      this.draft.points = simplifyPoints(this.draft.points, 0.35 / this.scale);
+      for (const sample of coalescedEvents(event)) {
+        this.appendDraftPoint(this.eventToInkPoint(sample));
+      }
+      this.draft.points = simplifyPoints(
+        removeSharpBacktracks(this.draft.points, this.draft.width),
+        this.draft.tool === "pen"
+          ? Math.max(0.45, Math.min(1.5, this.draft.width * 0.42))
+          : Math.max(0.35 / this.scale, 0.45)
+      );
       if (this.draft.points.length > 0) {
         this.drawing.strokes.push(this.draft);
         this.gestureChanged = true;
@@ -634,6 +657,7 @@ export class DrawingSurface {
     if (this.gestureChanged && this.gestureBefore) this.commit(this.gestureBefore);
     this.activePointerId = null;
     this.activePointerType = "";
+    this.activeRawPressure = null;
     this.gestureMode = null;
     this.gestureBefore = null;
     this.gestureChanged = false;
@@ -652,6 +676,7 @@ export class DrawingSurface {
     this.navigationPointers.clear();
     this.activePointerId = null;
     this.activePointerType = "";
+    this.activeRawPressure = null;
     this.gestureMode = null;
     this.gestureBefore = null;
     this.gestureChanged = false;
@@ -666,6 +691,7 @@ export class DrawingSurface {
     if (!this.draft) return;
     const previous = this.draft.points[this.draft.points.length - 1];
     if (previous && squaredDistance(previous, point) < 0.04 / (this.scale * this.scale)) return;
+    if (previous && point.time < previous.time) return;
     this.draft.points.push(point);
   }
 
@@ -791,12 +817,15 @@ export class DrawingSurface {
 
   private eventToInkPoint(event: PointerEvent): InkPoint {
     const point = this.toDrawingPoint(event);
-    const rawPressure = event.pressure > 0 ? event.pressure : event.pointerType === "pen" ? 0.12 : 0.5;
-    const sensitivity = this.settings.pressureSensitivity;
+    let rawPressure = event.pressure > 0 ? event.pressure : 0.5;
+    if (event.pointerType === "pen") {
+      rawPressure = stabilizePointerPressure(event.pressure, this.activeRawPressure);
+      this.activeRawPressure = rawPressure;
+    }
     return createInkPoint(
       point.x,
       point.y,
-      0.5 + (rawPressure - 0.5) * sensitivity,
+      applyPressureSensitivity(rawPressure, this.settings.pressureSensitivity),
       event.tiltX,
       event.tiltY,
       event.timeStamp
@@ -839,15 +868,6 @@ export class DrawingSurface {
   }
 }
 
-function coalescedEvents(event: PointerEvent): PointerEvent[] {
-  if (typeof event.getCoalescedEvents !== "function") return [event];
-  const events = event.getCoalescedEvents();
-  if (events.length === 0) return [event];
-  const last = events[events.length - 1];
-  if (last.clientX !== event.clientX || last.clientY !== event.clientY) return [...events, event];
-  return events;
-}
-
 function isEraserButton(event: PointerEvent): boolean {
   return event.pointerType === "pen" && (event.button === 5 || (event.buttons & 32) !== 0);
 }
@@ -877,4 +897,21 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 function formatToolWidth(width: number): string {
   return `${Number.isInteger(width) ? width : width.toFixed(1)} px`;
+}
+
+function fallbackIcon(icon: string): string {
+  const icons: Record<string, string> = {
+    "pen-tool": "✎",
+    highlighter: "▰",
+    eraser: "◇",
+    lasso: "⌁",
+    hand: "✋",
+    "sliders-horizontal": "☷",
+    "undo-2": "↶",
+    "redo-2": "↷",
+    "trash-2": "⌫",
+    minus: "−",
+    plus: "+"
+  };
+  return icons[icon] ?? "•";
 }

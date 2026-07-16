@@ -6,11 +6,13 @@ import {
   emptyDocument,
   hitTestStroke,
   pointInPolygon,
+  repairInkPointOrder,
+  removeSharpBacktracks,
   selectStrokesInPolygon,
   simplifyPoints,
   translateStrokes
 } from "../src/model";
-import { svgPathFromOutline } from "../src/render";
+import { pressureAdjustedWidth, svgPathFromOutline } from "../src/render";
 
 describe("ink points", () => {
   it("sanitizes unsupported pointer values", () => {
@@ -26,6 +28,30 @@ describe("ink points", () => {
     expect(simplified.length).toBeLessThan(10);
     expect(simplified[0]).toEqual(points[0]);
     expect(simplified[simplified.length - 1]).toEqual(points[points.length - 1]);
+  });
+
+  it("drops Safari parent samples that arrive behind a coalesced batch", () => {
+    const first = createInkPoint(10, 0, 0.5, 0, 0, 10);
+    const latest = createInkPoint(30, 0, 0.5, 0, 0, 30);
+    const staleParent = createInkPoint(20, 0, 0.5, 0, 0, 20);
+    const next = createInkPoint(40, 0, 0.5, 0, 0, 40);
+    expect(repairInkPointOrder([first, latest, staleParent, next])).toEqual([
+      first,
+      latest,
+      next
+    ]);
+  });
+
+  it("removes only the short leg of a sharp Pencil backtrack", () => {
+    const first = createInkPoint(0, 0, 0.5, 0, 0, 0);
+    const forward = createInkPoint(10, 0, 0.5, 0, 0, 10);
+    const staleBacktrack = createInkPoint(8, 0, 0.5, 0, 0, 20);
+    const next = createInkPoint(20, 0, 0.5, 0, 0, 30);
+    expect(removeSharpBacktracks([first, forward, staleBacktrack, next], 3.2)).toEqual([
+      first,
+      forward,
+      next
+    ]);
   });
 });
 
@@ -73,7 +99,14 @@ describe("document safety", () => {
 
   it("creates a closed SVG path from a freehand outline", () => {
     const path = svgPathFromOutline([[0, 0], [10, 0], [10, 10], [0, 10]]);
-    expect(path.startsWith("M 0.00 0.00 Q")).toBe(true);
-    expect(path.endsWith("Z")).toBe(true);
+    expect(path).toBe(
+      "M 0.00 5.00 Q 0.00 0.00 5.00 0.00 Q 10.00 0.00 10.00 5.00 Q 10.00 10.00 5.00 10.00 Q 0.00 10.00 0.00 5.00 Z"
+    );
+  });
+
+  it("maps Pencil pressure to a stable positive stroke width", () => {
+    expect(pressureAdjustedWidth(4, 0.5)).toBe(4);
+    expect(pressureAdjustedWidth(4, 0.2)).toBeLessThan(4);
+    expect(pressureAdjustedWidth(4, 0)).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,4 @@
-import { cloneDocument, createInkPoint, emptyDocument } from "./model";
+import { cloneDocument, createInkPoint, emptyDocument, repairInkPointOrder } from "./model";
 import { DEFAULT_SETTINGS, type InkDocument, type InkPluginData, type InkSettings, type InkStroke } from "./types";
 
 export interface PluginDataHost {
@@ -107,10 +107,10 @@ function parseDocument(value: unknown, fallbackPath: string): InkDocument | null
     if (!isRecord(rawStroke) || !Array.isArray(rawStroke.points)) return [];
     const tool = rawStroke.tool === "highlighter" ? "highlighter" : rawStroke.tool === "pen" ? "pen" : null;
     if (!tool) return [];
-    const points = rawStroke.points.flatMap((rawPoint) => {
+    const points = repairInkPointOrder(rawStroke.points.flatMap((rawPoint) => {
       const point = parsePoint(rawPoint);
       return point ? [point] : [];
-    });
+    }));
     if (points.length === 0) return [];
     return [{
       id: typeof rawStroke.id === "string" ? rawStroke.id : `${Date.now()}-${strokeIndex}`,
