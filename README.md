@@ -34,18 +34,28 @@ Inkplane stores new drawings in the `Inkplane` folder by default. Both the folde
 Inkplane keeps the controls compact so the drawing remains the focus:
 
 - Pressure-aware pen and translucent highlighter
-- Whole-stroke eraser
-- Lasso selection and movement
+- Area eraser that removes only the touched part of a stroke
+- Lasso selection, movement, and deletion
 - Undo and redo history
 - Infinite pan and pinch/trackpad zoom
 - Stroke-aware fit-to-view
-- Theme-matched or fixed ink colours
-- Adjustable presets and precise width controls
+- Quick colour swatches plus theme-matched, preset, and custom ink colours
+- Live previews, width presets, and precise size controls for every drawing tool
+- Configurable top or bottom toolbar with iPad safe-area support
 - SVG export to a normal vault attachment
 
-![Inkplane pen palette with colours and stroke widths](docs/images/inkplane-palette.jpeg)
+![Inkplane infinite canvas and drawing toolbar on iPad](docs/images/inkplane-canvas.png)
 
-<p align="center"><sub>The pen palette includes theme-adaptive ink, colour presets, custom colour, width presets, and fine adjustment.</sub></p>
+<p align="center"><sub>The Pencil-first canvas on iPad, with drawing tools, quick colours, and zoom controls close at hand.</sub></p>
+
+## Settings
+
+Open **Settings → Inkplane** to configure:
+
+- The folder for new `.inklayer` drawings and default embed dimensions
+- Pen and highlighter colours and widths, eraser size, and pressure response
+- Palm rejection and optional finger or mouse drawing
+- Top or bottom toolbar placement
 
 ## Embedding drawings
 
@@ -61,9 +71,18 @@ Change `800x600` to control the preview size. Embedded canvases are intentionall
 
 ## Installation
 
-### BRAT
+### Obsidian Community plugins
 
-Until Inkplane is available in the Obsidian Community directory, the easiest installation path is [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+1. Open **Settings → Community plugins** in Obsidian.
+2. Turn on community plugins if Obsidian prompts you to leave Restricted Mode.
+3. Select **Browse**, search for **Inkplane**, and select **Install**.
+4. Select **Enable** when installation finishes.
+
+Obsidian installs updates from Inkplane's matching [GitHub releases](https://github.com/SirwanAfifi/inkplane/releases/latest).
+
+### Beta testing with BRAT
+
+To test a release before it reaches the Community directory, use [BRAT](https://github.com/TfTHacker/obsidian42-brat):
 
 1. Install and enable BRAT.
 2. Run **BRAT: Add a beta plugin for testing**.
@@ -91,6 +110,7 @@ The folder remains `ink-layer` for compatibility with existing installations; th
 | **Export current drawing as SVG** | Writes a scalable image attachment to the vault. |
 | **Convert legacy ink from current note to a drawing** | Copies version 0.1 note ink into a standalone canvas. |
 | **Select pen / highlighter / eraser / lasso / pan** | Switches tools from the command palette or a custom hotkey. |
+| **Switch between pen and eraser** | Toggles between the two tools on the active canvas. |
 | **Undo ink / Redo ink / Fit drawing / Clear drawing** | Controls the active canvas. |
 
 ## Platform support
