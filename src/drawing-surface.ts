@@ -792,6 +792,7 @@ export class DrawingSurface {
   }
 
   private updateToolbar(): void {
+    this.root.classList.toggle("is-pan-tool", this.tool === "pan");
     for (const [tool, button] of this.toolButtons) {
       const selected = tool === this.tool;
       button.classList.toggle("is-selected", selected);

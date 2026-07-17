@@ -1,6 +1,6 @@
-.ink-canvas-view-content {
+.view-content.ink-canvas-view-content {
   height: 100%;
-  padding: 0 !important;
+  padding: 0;
   overflow: hidden;
 }
 
@@ -30,7 +30,7 @@
   overscroll-behavior: none;
 }
 
-.ink-canvas-view:has(.ink-layer-tool[data-tool="pan"].is-selected) .ink-canvas-viewport,
+.ink-canvas-view.is-pan-tool .ink-canvas-viewport,
 .ink-canvas-view.is-panning .ink-canvas-viewport {
   cursor: grab;
 }
@@ -191,29 +191,49 @@
 }
 
 .ink-layer-tool[data-tool="pen"]::before {
-  width: 25px;
-  height: 46px;
+  width: 9px;
+  height: 39px;
   background: linear-gradient(
     to bottom,
-    var(--ink-instrument-color) 0 8%,
-    #f8f8f6 9% 56%,
-    var(--ink-instrument-color) 57% 67%,
-    #f7f7f4 68% 100%
+    #f8f8f6 0 52%,
+    var(--ink-instrument-color) 53% 65%,
+    #f7f7f4 66% 100%
   );
-  clip-path: polygon(50% 0, 68% 15%, 68% 100%, 32% 100%, 32% 15%);
+  border-radius: 2px 2px 1px 1px;
 }
 
 .ink-layer-tool[data-tool="highlighter"]::before {
-  width: 28px;
-  height: 44px;
+  width: 13px;
+  height: 37px;
   background: linear-gradient(
     to bottom,
-    var(--ink-instrument-color) 0 25%,
-    #fafaf8 26% 57%,
-    var(--ink-instrument-color) 58% 69%,
-    #f8f8f5 70% 100%
+    var(--ink-instrument-color) 0 15%,
+    #fafaf8 16% 50%,
+    var(--ink-instrument-color) 51% 64%,
+    #f8f8f5 65% 100%
   );
-  clip-path: polygon(37% 0, 63% 0, 73% 17%, 73% 100%, 27% 100%, 27% 17%);
+  border-radius: 2px 2px 1px 1px;
+}
+
+.ink-layer-tool[data-tool="pen"]::after,
+.ink-layer-tool[data-tool="highlighter"]::after {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--ink-instrument-color);
+  border-left: 5px solid transparent;
+  content: "";
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 14%));
+  transform: translateX(-50%);
+}
+
+.ink-layer-tool[data-tool="highlighter"]::after {
+  border-right-width: 6px;
+  border-bottom-width: 7px;
+  border-left-width: 6px;
 }
 
 .ink-layer-tool[data-tool="eraser"]::before {
@@ -287,12 +307,12 @@
   transition: filter 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
-.ink-quick-color {
-  background: var(--ink-quick-color) !important;
+.ink-canvas-view .ink-layer-toolbar button.ink-quick-color {
+  background: var(--ink-quick-color);
 }
 
-.ink-quick-color.is-adaptive {
-  background: linear-gradient(135deg, #fafafa 0 48%, #111 49% 100%) !important;
+.ink-canvas-view .ink-layer-toolbar button.ink-quick-color.is-adaptive {
+  background: linear-gradient(135deg, #fafafa 0 48%, #111 49% 100%);
 }
 
 .ink-quick-color:hover,
@@ -313,13 +333,13 @@
   box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--text-normal), inset 0 0 0 1px rgb(255 255 255 / 16%);
 }
 
-.ink-color-more {
-  width: 34px !important;
+.ink-canvas-view .ink-layer-toolbar button.ink-color-more {
+  width: 34px;
   min-width: 34px;
-  height: 34px !important;
-  color: white !important;
-  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444) !important;
-  border-radius: 50% !important;
+  height: 34px;
+  color: white;
+  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
+  border-radius: 50%;
 }
 
 .ink-color-more > svg {
@@ -656,8 +676,8 @@
   padding: 2px 0 4px;
 }
 
-.ink-color-swatch,
-.ink-custom-color {
+.ink-tool-inspector .ink-color-swatch,
+.ink-tool-inspector .ink-custom-color {
   position: relative;
   display: grid;
   width: 44px;
@@ -668,7 +688,7 @@
   overflow: hidden;
   color: var(--text-normal);
   appearance: none;
-  background: var(--ink-swatch-color, transparent) !important;
+  background: var(--ink-swatch-color, transparent);
   border: 2px solid color-mix(in srgb, var(--background-primary) 82%, var(--background-modifier-border));
   border-radius: 50%;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-muted) 25%, transparent), inset 0 0 0 1px rgb(255 255 255 / 14%);
@@ -697,16 +717,16 @@
   box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent), inset 0 0 0 1px rgb(255 255 255 / 16%);
 }
 
-.ink-color-swatch.is-adaptive {
+.ink-tool-inspector .ink-color-swatch.is-adaptive {
   color: var(--text-normal);
   font-size: var(--font-ui-smaller);
   font-weight: var(--font-semibold);
-  background: linear-gradient(135deg, var(--background-primary) 0 50%, var(--text-normal) 50% 100%) !important;
+  background: linear-gradient(135deg, var(--background-primary) 0 50%, var(--text-normal) 50% 100%);
   text-shadow: 0 1px 2px var(--background-primary);
 }
 
-.ink-custom-color {
-  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444) !important;
+.ink-tool-inspector .ink-custom-color {
+  background: conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444);
 }
 
 .ink-custom-color input {
@@ -826,21 +846,21 @@
   box-shadow: none;
 }
 
-.ink-width-slider {
+.ink-tool-inspector input.ink-width-slider {
   --ink-range-progress: 0%;
-  width: 100% !important;
+  width: 100%;
   height: 32px;
   margin: 7px 0 0;
   padding: 0;
   appearance: none;
-  background: transparent !important;
+  background: transparent;
   border: 0;
   box-shadow: none;
   cursor: ew-resize;
 }
 
-.ink-width-slider::-webkit-slider-runnable-track {
-  width: 100% !important;
+.ink-tool-inspector input.ink-width-slider::-webkit-slider-runnable-track {
+  width: 100%;
   height: 5px;
   background: linear-gradient(to right, var(--interactive-accent) 0 var(--ink-range-progress), var(--background-modifier-border) var(--ink-range-progress) 100%);
   border: 0;
@@ -902,11 +922,11 @@
   cursor: ew-resize;
 }
 
-.ink-layer-embed {
-  display: block !important;
+.internal-embed.ink-layer-embed {
+  display: block;
   width: 100%;
-  padding: 0 !important;
-  border: 0 !important;
+  padding: 0;
+  border: 0;
 }
 
 .ink-embed-preview {
@@ -996,11 +1016,11 @@
     height: 56px;
   }
 
-  .ink-quick-color,
-  .ink-color-more {
-    width: 36px !important;
+  .ink-canvas-view .ink-layer-toolbar button.ink-quick-color,
+  .ink-canvas-view .ink-layer-toolbar button.ink-color-more {
+    width: 36px;
     min-width: 36px;
-    height: 36px !important;
+    height: 36px;
   }
 
   .ink-layer-zoom {

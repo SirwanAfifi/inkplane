@@ -18,9 +18,16 @@ export class DrawingRepository {
   }
 
   drawingFiles(): TFile[] {
-    return this.app.vault.getFiles()
-      .filter((file) => file.extension.toLowerCase() === INK_EXTENSION)
-      .sort((first, second) => first.path.localeCompare(second.path));
+    const folderPath = normalizePath(this.getSettings().drawingFolder.trim());
+    const configuredFolder = folderPath.length > 0 && folderPath !== "/";
+    const folder = configuredFolder
+      ? this.app.vault.getAbstractFileByPath(folderPath)
+      : this.app.vault.getRoot();
+    if (!(folder instanceof TFolder)) return [];
+
+    const drawings: TFile[] = [];
+    collectDrawingFiles(folder, drawings, configuredFolder);
+    return drawings.sort((first, second) => first.path.localeCompare(second.path));
   }
 
   resolve(linkPath: string, sourcePath: string): TFile | null {
@@ -54,6 +61,16 @@ export class DrawingRepository {
       if (existing instanceof TFolder) continue;
       if (existing) throw new Error(`${current} already exists and is not a folder.`);
       await this.app.vault.createFolder(current);
+    }
+  }
+}
+
+function collectDrawingFiles(folder: TFolder, drawings: TFile[], recursive: boolean): void {
+  for (const child of folder.children) {
+    if (child instanceof TFile && child.extension.toLowerCase() === INK_EXTENSION) {
+      drawings.push(child);
+    } else if (recursive && child instanceof TFolder) {
+      collectDrawingFiles(child, drawings, true);
     }
   }
 }

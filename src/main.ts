@@ -109,7 +109,7 @@ export default class InkLayerPlugin
       checkCallback: (checking) => this.withMarkdownView(checking, (view) => {
         const files = this.repository.drawingFiles();
         if (files.length === 0) {
-          new Notice("Create an ink drawing first.");
+          new Notice("No drawings found in the configured drawing folder.");
           return;
         }
         new DrawingSuggestModal(this.app, files, (file) => this.insertEmbed(view, file)).open();

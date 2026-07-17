@@ -106,7 +106,7 @@ The folder remains `ink-layer` for compatibility with existing installations; th
 | --- | --- |
 | **Create new drawing** | Creates and opens a standalone canvas. |
 | **Insert new drawing in current note** | Creates a drawing, embeds it, and opens it. |
-| **Insert existing drawing in current note** | Chooses and embeds a drawing already in the vault. |
+| **Insert existing drawing in current note** | Chooses and embeds a drawing from the configured drawing folder. |
 | **Export current drawing as SVG** | Writes a scalable image attachment to the vault. |
 | **Convert legacy ink from current note to a drawing** | Copies version 0.1 note ink into a standalone canvas. |
 | **Select pen / highlighter / eraser / lasso / pan** | Switches tools from the command palette or a custom hotkey. |
@@ -130,7 +130,7 @@ Each `.inklayer` file is readable JSON. Stroke points are stored as compact tupl
 
 Ink created by Inkplane 0.1 remains untouched in the plugin's `data.json`. Open the original note and run **Convert legacy ink from current note to a drawing** to copy those strokes into a standalone file and insert an embed. The original data is deliberately retained as a backup.
 
-Inkplane makes no network requests and collects no telemetry. The only files it writes are plugin settings, `.inklayer` drawings, and SVG exports you explicitly request.
+Inkplane makes no network requests and collects no telemetry. The existing-drawing picker searches only the configured drawing folder and does not enumerate other vault file paths. The only files Inkplane writes are plugin settings, `.inklayer` drawings, and SVG exports you explicitly request.
 
 ## Development
 
