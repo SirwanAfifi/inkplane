@@ -1,7 +1,7 @@
 {
   "id": "ink-layer",
   "name": "Inkplane",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "minAppVersion": "1.7.2",
   "description": "An infinite handwriting canvas with note embeds, designed for Apple Pencil and other pens.",
   "author": "Sirwan Afifi",

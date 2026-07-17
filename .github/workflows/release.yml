@@ -28,10 +28,10 @@ jobs:
         run: npm run check
       - name: Validate tag
         run: node scripts/check-release.mjs "$GITHUB_REF_NAME"
-      # Obsidian's verifier expects the distributable code and stylesheet in
-      # one provenance statement. Pin the revision used by accepted plugins.
+      # Obsidian's verifier expects a SLSA build-provenance statement covering
+      # the distributable code and stylesheet.
       - name: Attest release assets
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
+        uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
             main.js
