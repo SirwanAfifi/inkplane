@@ -1,16 +1,20 @@
 name: Release
 
 # Triggered on push to main. When manifest.json's version does not yet have a
-# GitHub release, this builds, attests, tags, and publishes it.
+# GitHub release, this builds, attests, waits for attestation propagation, then
+# tags and publishes.
 #
-# The workflow deliberately runs in a BRANCH context (refs/heads/main) rather
-# than being triggered by a tag push. Artifact attestations are signed with the
-# workflow's OIDC identity, and that identity embeds the triggering ref. Obsidian's
-# community-plugin verifier expects the signer identity to be a branch
-# (refs/heads/*); a tag-triggered run signs as refs/tags/<version>, which fails
-# Obsidian's verification ("attestation does not match this repository") even
-# though `gh attestation verify` accepts it. Creating the tag from within this
-# branch run keeps the attestation identity on refs/heads/main.
+# Ordering is load-bearing for Obsidian's community-plugin dashboard scan:
+#   1. Build assets. main.js embeds the version via the esbuild banner and
+#      styles.css carries a version comment, so every release has fresh asset
+#      digests. GitHub attestations are keyed by sha256 digest; a reused digest
+#      accumulates attestations from multiple runs and confuses verification.
+#   2. Attest all three assets (branch-context OIDC identity, refs/heads/main).
+#   3. WAIT until the attestation is verifiable through GitHub's public API.
+#      Obsidian scans the release the instant it is published; if we publish
+#      before the attestation propagates, the scan sees no valid attestation and
+#      the failed verdict is cached against the entry.
+#   4. Only then create the tag and publish the release.
 
 on:
   push:
@@ -62,12 +66,34 @@ jobs:
       # the distributable assets. Attest all three published files.
       - name: Attest release assets
         if: steps.exists.outputs.found == 'false'
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             main.js
             manifest.json
             styles.css
+      # The attestation must be queryable through GitHub's PUBLIC attestation API
+      # before we publish the release. Obsidian's dashboard scans the release the
+      # moment it appears; if the attestation has not propagated yet, the scan
+      # reads "no valid attestation" and the failed verdict sticks. Gate the
+      # release on a real verify against the public API (retry until it lands).
+      - name: Wait for attestation propagation
+        if: steps.exists.outputs.found == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if gh attestation verify main.js -R "${{ github.repository }}" \
+               && gh attestation verify styles.css -R "${{ github.repository }}" \
+               && gh attestation verify manifest.json -R "${{ github.repository }}"; then
+              echo "Attestations verified via public API on attempt $attempt."
+              exit 0
+            fi
+            echo "Attempt $attempt: attestations not yet verifiable; retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Attestations did not become verifiable within the timeout."
+          exit 1
       - name: Create tag
         if: steps.exists.outputs.found == 'false'
         env:
