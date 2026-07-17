@@ -2,6 +2,10 @@
 
 All notable changes to Inkplane are documented here.
 
+## 0.2.3 — 2026-07-17
+
+- Pin release attestations to an Obsidian-compatible `actions/attest` revision.
+
 ## 0.2.2 — 2026-07-17
 
 - Published an independent provenance attestation for each release asset.
