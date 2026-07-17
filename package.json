@@ -1,6 +1,6 @@
 {
   "name": "inkplane",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "A Pencil-first infinite drawing canvas with embeds for Obsidian.",
   "private": true,
   "type": "module",
