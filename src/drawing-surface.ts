@@ -114,36 +114,28 @@ export class DrawingSurface {
     private readonly callbacks: DrawingSurfaceCallbacks,
     drawing?: InkDrawing
   ) {
-    const doc = host.ownerDocument;
     this.drawing = cloneDrawing(drawing ?? emptyDrawing(
       store.settings.defaultCanvasWidth,
       store.settings.defaultCanvasHeight
     ));
 
-    this.root = doc.createElement("div");
-    this.root.className = "ink-canvas-view";
-    this.root.tabIndex = 0;
-
-    this.viewport = doc.createElement("div");
-    this.viewport.className = "ink-canvas-viewport";
-    this.viewport.setAttribute("aria-label", "Ink drawing canvas");
-    this.root.appendChild(this.viewport);
-
-    this.dryCanvas = doc.createElement("canvas");
-    this.dryCanvas.className = "ink-canvas-layer ink-canvas-layer-dry";
-    this.dryCanvas.setAttribute("aria-hidden", "true");
-    this.viewport.appendChild(this.dryCanvas);
-
-    this.wetCanvas = doc.createElement("canvas");
-    this.wetCanvas.className = "ink-canvas-layer";
-    this.wetCanvas.setAttribute("aria-hidden", "true");
-    this.viewport.appendChild(this.wetCanvas);
-
-    this.toolbar = doc.createElement("div");
-    this.toolbar.className = "ink-layer-toolbar";
-    this.toolbar.setAttribute("role", "toolbar");
-    this.toolbar.setAttribute("aria-label", "Ink tools");
-    this.root.appendChild(this.toolbar);
+    this.root = host.createDiv({ cls: "ink-canvas-view", attr: { tabindex: "0" } });
+    this.viewport = this.root.createDiv({
+      cls: "ink-canvas-viewport",
+      attr: { "aria-label": "Ink drawing canvas" }
+    });
+    this.dryCanvas = this.viewport.createEl("canvas", {
+      cls: "ink-canvas-layer ink-canvas-layer-dry",
+      attr: { "aria-hidden": "true" }
+    });
+    this.wetCanvas = this.viewport.createEl("canvas", {
+      cls: "ink-canvas-layer",
+      attr: { "aria-hidden": "true" }
+    });
+    this.toolbar = this.root.createDiv({
+      cls: "ink-layer-toolbar",
+      attr: { role: "toolbar", "aria-label": "Ink tools" }
+    });
 
     this.startToolbarGroup("History", "ink-toolbar-history");
     this.undoButton = this.addActionButton("undo-2", "Undo ink", () => this.undo());
@@ -174,27 +166,18 @@ export class DrawingSurface {
     this.zoomButton = this.addTextButton("100%", "Fit drawing", () => this.fitToView());
     this.addActionButton("plus", "Zoom in", () => this.zoomBy(1.25));
 
-    this.emptyState = doc.createElement("div");
-    this.emptyState.className = "ink-canvas-empty-state";
-    this.emptyState.setAttribute("aria-hidden", "true");
-    const emptyIcon = doc.createElement("span");
-    emptyIcon.className = "ink-empty-icon";
+    this.emptyState = this.viewport.createDiv({
+      cls: "ink-canvas-empty-state",
+      attr: { "aria-hidden": "true" }
+    });
+    const emptyIcon = this.emptyState.createSpan({ cls: "ink-empty-icon" });
     setIcon(emptyIcon, "pen-tool");
-    const emptyTitle = doc.createElement("strong");
-    emptyTitle.textContent = "Draw with Apple Pencil";
-    const emptyHint = doc.createElement("span");
-    emptyHint.textContent = "One finger pans · two fingers zoom";
-    this.emptyState.append(emptyIcon, emptyTitle, emptyHint);
-    this.viewport.appendChild(this.emptyState);
+    this.emptyState.createEl("strong", { text: "Draw with Apple Pencil" });
+    this.emptyState.createSpan({ text: "One finger pans · two fingers zoom" });
 
-    const status = doc.createElement("div");
-    status.className = "ink-canvas-status";
-    this.statusLabel = doc.createElement("span");
-    this.statusLabel.className = "ink-canvas-status-tool";
-    this.statusMeta = doc.createElement("span");
-    this.statusMeta.className = "ink-canvas-status-meta";
-    status.append(this.statusLabel, this.statusMeta);
-    this.root.appendChild(status);
+    const status = this.root.createDiv({ cls: "ink-canvas-status" });
+    this.statusLabel = status.createSpan({ cls: "ink-canvas-status-tool" });
+    this.statusMeta = status.createSpan({ cls: "ink-canvas-status-meta" });
 
     this.toolInspector = new ToolInspector(
       this.root,
@@ -366,17 +349,13 @@ export class DrawingSurface {
     const button = this.addActionButton(icon, label, () => this.setTool(tool));
     button.dataset.tool = tool;
     button.setAttribute("aria-pressed", "false");
-    const indicator = this.toolbar.ownerDocument.createElement("span");
-    indicator.className = "ink-tool-selection-indicator";
-    indicator.setAttribute("aria-hidden", "true");
-    button.appendChild(indicator);
+    button.createSpan({ cls: "ink-tool-selection-indicator", attr: { "aria-hidden": "true" } });
     this.toolButtons.set(tool, button);
   }
 
   private addQuickColorButton(index: number): HTMLButtonElement {
-    const button = this.toolbar.ownerDocument.createElement("button");
-    button.type = "button";
-    button.className = "ink-quick-color";
+    const parent = this.toolbarGroup ?? this.toolbar;
+    const button = parent.createEl("button", { cls: "ink-quick-color", attr: { type: "button" } });
     button.dataset.colorIndex = String(index);
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", (event) => {
@@ -391,7 +370,6 @@ export class DrawingSurface {
       this.updateToolbar();
       this.root.focus({ preventScroll: true });
     });
-    (this.toolbarGroup ?? this.toolbar).appendChild(button);
     return button;
   }
 
@@ -400,11 +378,11 @@ export class DrawingSurface {
     label: string,
     action: (event: MouseEvent) => void
   ): HTMLButtonElement {
-    const button = this.toolbar.ownerDocument.createElement("button");
-    button.type = "button";
-    button.className = "ink-layer-tool clickable-icon";
-    button.setAttribute("aria-label", label);
-    button.setAttribute("title", label);
+    const parent = this.toolbarGroup ?? this.toolbar;
+    const button = parent.createEl("button", {
+      cls: "ink-layer-tool clickable-icon",
+      attr: { type: "button", "aria-label": label, title: label }
+    });
     button.dataset.inkTooltip = label;
     try {
       setIcon(button, icon);
@@ -412,43 +390,40 @@ export class DrawingSurface {
       // Older mobile Obsidian builds can lack newer Lucide icon identifiers.
     }
     if (!button.querySelector("svg")) {
-      const fallback = this.toolbar.ownerDocument.createElement("span");
-      fallback.className = "ink-tool-glyph";
-      fallback.textContent = fallbackIcon(icon);
-      fallback.setAttribute("aria-hidden", "true");
-      button.appendChild(fallback);
+      button.createSpan({
+        cls: "ink-tool-glyph",
+        text: fallbackIcon(icon),
+        attr: { "aria-hidden": "true" }
+      });
     }
     button.addEventListener("click", (event) => {
       consumeEvent(event);
       action(event);
       this.root.focus({ preventScroll: true });
     });
-    (this.toolbarGroup ?? this.toolbar).appendChild(button);
     return button;
   }
 
   private addTextButton(text: string, label: string, action: () => void): HTMLButtonElement {
-    const button = this.toolbar.ownerDocument.createElement("button");
-    button.type = "button";
-    button.className = "ink-layer-tool ink-layer-zoom";
-    button.textContent = text;
-    button.setAttribute("aria-label", label);
-    button.setAttribute("title", label);
+    const parent = this.toolbarGroup ?? this.toolbar;
+    const button = parent.createEl("button", {
+      cls: "ink-layer-tool ink-layer-zoom",
+      text,
+      attr: { type: "button", "aria-label": label, title: label }
+    });
     button.addEventListener("click", (event) => {
       consumeEvent(event);
       action();
       this.root.focus({ preventScroll: true });
     });
-    (this.toolbarGroup ?? this.toolbar).appendChild(button);
     return button;
   }
 
   private startToolbarGroup(label: string, className = ""): void {
-    const group = this.toolbar.ownerDocument.createElement("div");
-    group.className = `ink-toolbar-group ${className}`.trim();
-    group.setAttribute("role", "group");
-    group.setAttribute("aria-label", label);
-    this.toolbar.appendChild(group);
+    const group = this.toolbar.createDiv({
+      cls: `ink-toolbar-group ${className}`.trim(),
+      attr: { role: "group", "aria-label": label }
+    });
     this.toolbarGroup = group;
   }
 

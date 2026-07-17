@@ -75,9 +75,13 @@ export default class InkLayerPlugin
     this.registerDomEvent(window, "pagehide", () => void this.flushOpenDrawings());
   }
 
-  async onunload(): Promise<void> {
-    await this.flushOpenDrawings();
+  onunload(): void {
     this.embedManager.destroy();
+    void this.persistBeforeUnload();
+  }
+
+  private async persistBeforeUnload(): Promise<void> {
+    await this.flushOpenDrawings();
     await this.store.dispose();
   }
 
@@ -317,18 +321,24 @@ class ClearInkModal extends Modal {
 
   onOpen(): void {
     this.titleEl.textContent = "Clear this drawing?";
-    const description = this.contentEl.ownerDocument.createElement("p");
-    description.textContent = "This removes every stroke. You can undo it while the drawing remains open.";
-    this.contentEl.appendChild(description);
+    this.contentEl.createEl("p", {
+      text: "This removes every stroke. You can undo it while the drawing remains open."
+    });
     new Setting(this.contentEl)
       .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()))
-      .addButton((button) => button
-        .setButtonText("Clear drawing")
-        .setWarning()
-        .onClick(() => {
+      .addButton((button) => {
+        button.setButtonText("Clear drawing");
+        if (typeof button.setDestructive === "function") {
+          button.setDestructive().setCta();
+        } else {
+          // Preserve destructive styling on supported Obsidian versions before 1.13.0.
+          button.buttonEl.addClasses(["mod-warning", "mod-cta"]);
+        }
+        button.onClick(() => {
           this.onConfirm();
           this.close();
-        }));
+        });
+      });
   }
 
   onClose(): void {

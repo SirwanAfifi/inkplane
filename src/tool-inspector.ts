@@ -91,13 +91,15 @@ export class ToolInspector {
     private readonly onOpenChange?: (open: boolean) => void,
     private readonly anchor?: HTMLElement
   ) {
-    this.element = parent.ownerDocument.createElement("div");
-    this.element.className = "ink-tool-inspector";
-    this.element.setAttribute("role", "dialog");
-    this.element.setAttribute("aria-label", "Tool settings");
-    this.element.setAttribute("aria-hidden", "true");
-    this.element.tabIndex = -1;
-    this.parent.appendChild(this.element);
+    this.element = parent.createDiv({
+      cls: "ink-tool-inspector",
+      attr: {
+        role: "dialog",
+        "aria-label": "Tool settings",
+        "aria-hidden": "true",
+        tabindex: "-1"
+      }
+    });
   }
 
   get isOpen(): boolean {
@@ -182,67 +184,52 @@ export class ToolInspector {
     this.element.replaceChildren();
     this.element.setAttribute("aria-label", `${design.label} settings`);
 
-    const header = doc.createElement("div");
-    header.className = "ink-inspector-header";
-    const heading = doc.createElement("div");
-    heading.className = "ink-inspector-heading";
-    const toolIcon = doc.createElement("span");
-    toolIcon.className = "ink-inspector-tool-icon";
-    toolIcon.setAttribute("aria-hidden", "true");
+    const header = this.element.createDiv({ cls: "ink-inspector-header" });
+    const heading = header.createDiv({ cls: "ink-inspector-heading" });
+    const toolIcon = heading.createSpan({
+      cls: "ink-inspector-tool-icon",
+      attr: { "aria-hidden": "true" }
+    });
     setIcon(toolIcon, design.icon);
-    const titleWrap = doc.createElement("div");
-    const title = doc.createElement("div");
-    title.className = "ink-inspector-title";
-    title.textContent = `${design.label} settings`;
-    const description = doc.createElement("div");
-    description.className = "ink-inspector-description";
-    description.textContent = design.description;
-    titleWrap.append(title, description);
-    heading.append(toolIcon, titleWrap);
-    const closeButton = doc.createElement("button");
-    closeButton.type = "button";
-    closeButton.className = "ink-inspector-close clickable-icon";
-    closeButton.setAttribute("aria-label", "Close color and size");
+    const titleWrap = heading.createDiv();
+    titleWrap.createDiv({ cls: "ink-inspector-title", text: `${design.label} settings` });
+    titleWrap.createDiv({ cls: "ink-inspector-description", text: design.description });
+    const closeButton = header.createEl("button", {
+      cls: "ink-inspector-close clickable-icon",
+      attr: { type: "button", "aria-label": "Close color and size" }
+    });
     closeButton.dataset.inkFocus = "close";
     setIcon(closeButton, "x");
     closeButton.addEventListener("click", () => this.close());
-    header.append(heading, closeButton);
-    this.element.appendChild(header);
 
-    const preview = doc.createElement("div");
-    preview.className = `ink-stroke-preview is-${this.tool}`;
-    preview.setAttribute("role", "img");
-    preview.setAttribute("aria-label", `${design.label} preview at ${formatWidth(width)}`);
-    const previewLine = doc.createElement("div");
-    previewLine.className = "ink-stroke-preview-line";
+    const preview = this.element.createDiv({
+      cls: `ink-stroke-preview is-${this.tool}`,
+      attr: { role: "img", "aria-label": `${design.label} preview at ${formatWidth(width)}` }
+    });
+    const previewLine = preview.createDiv({ cls: "ink-stroke-preview-line" });
     previewLine.style.setProperty("--ink-preview-color", cssColor(color));
     previewLine.style.setProperty("--ink-preview-width", `${previewWidth(this.tool, width)}px`);
-    preview.appendChild(previewLine);
-    this.element.appendChild(preview);
 
     if (design.colors) {
       const selectedChoice = design.colors.find((choice) => colorsMatch(color, choice.value));
       const isCustomColor = color !== "adaptive" && selectedChoice === undefined;
-      const colorHeader = doc.createElement("div");
-      colorHeader.className = "ink-inspector-section-row is-color";
-      colorHeader.appendChild(this.sectionLabel("Color"));
-      const colorValue = doc.createElement("output");
-      colorValue.className = "ink-color-value";
-      colorValue.textContent = selectedChoice?.label ?? color.toUpperCase();
-      colorHeader.appendChild(colorValue);
-      this.element.appendChild(colorHeader);
+      const colorHeader = this.element.createDiv({ cls: "ink-inspector-section-row is-color" });
+      this.sectionLabel(colorHeader, "Color");
+      const colorValue = colorHeader.createEl("output", {
+        cls: "ink-color-value",
+        text: selectedChoice?.label ?? color.toUpperCase()
+      });
 
-      const swatches = doc.createElement("div");
-      swatches.className = "ink-color-grid";
-      swatches.setAttribute("role", "group");
-      swatches.setAttribute("aria-label", "Color presets");
+      const swatches = this.element.createDiv({
+        cls: "ink-color-grid",
+        attr: { role: "group", "aria-label": "Color presets" }
+      });
       for (const choice of design.colors) {
-        const button = doc.createElement("button");
-        button.type = "button";
-        button.className = "ink-color-swatch";
+        const button = swatches.createEl("button", {
+          cls: "ink-color-swatch",
+          attr: { type: "button", "aria-label": choice.label, title: choice.label }
+        });
         button.classList.toggle("is-selected", colorsMatch(color, choice.value));
-        button.setAttribute("aria-label", choice.label);
-        button.setAttribute("title", choice.label);
         button.setAttribute("aria-pressed", button.classList.contains("is-selected") ? "true" : "false");
         button.dataset.inkFocus = `color-${choice.value}`;
         if (choice.value === "adaptive") {
@@ -251,21 +238,18 @@ export class ToolInspector {
         } else {
           button.style.setProperty("--ink-swatch-color", choice.value);
         }
-        button.appendChild(this.selectionMark());
+        this.selectionMark(button);
         button.addEventListener("click", () => {
           this.applyColor(choice.value);
           this.render();
         });
-        swatches.appendChild(button);
       }
 
-      const custom = doc.createElement("label");
-      custom.className = "ink-custom-color";
+      const custom = swatches.createEl("label", { cls: "ink-custom-color", attr: { title: "Custom color" } });
       custom.classList.toggle("is-selected", isCustomColor);
-      custom.setAttribute("title", "Custom color");
-      const colorInput = doc.createElement("input");
-      colorInput.type = "color";
-      colorInput.setAttribute("aria-label", "Custom color");
+      const colorInput = custom.createEl("input", {
+        attr: { type: "color", "aria-label": "Custom color" }
+      });
       colorInput.dataset.inkFocus = "color-custom";
       colorInput.value = color === "adaptive" ? "#111827" : color;
       colorInput.addEventListener("input", () => {
@@ -278,56 +262,52 @@ export class ToolInspector {
         }
         custom.classList.add("is-selected");
       });
-      const customIcon = doc.createElement("span");
-      customIcon.className = "ink-custom-color-glyph";
-      customIcon.setAttribute("aria-hidden", "true");
+      const customIcon = custom.createSpan({
+        cls: "ink-custom-color-glyph",
+        attr: { "aria-hidden": "true" }
+      });
       setIcon(customIcon, "pipette");
-      custom.append(colorInput, customIcon, this.selectionMark());
-      swatches.appendChild(custom);
-      this.element.appendChild(swatches);
+      this.selectionMark(custom);
     }
 
-    const widthHeader = doc.createElement("div");
-    widthHeader.className = "ink-inspector-section-row";
-    widthHeader.appendChild(this.sectionLabel(this.tool === "eraser" ? "Eraser size" : "Stroke width"));
-    const widthValue = doc.createElement("output");
-    widthValue.className = "ink-width-value";
-    widthValue.setAttribute("aria-live", "polite");
-    widthValue.textContent = formatWidth(width);
-    widthHeader.appendChild(widthValue);
-    this.element.appendChild(widthHeader);
+    const widthHeader = this.element.createDiv({ cls: "ink-inspector-section-row" });
+    this.sectionLabel(widthHeader, this.tool === "eraser" ? "Eraser size" : "Stroke width");
+    const widthValue = widthHeader.createEl("output", {
+      cls: "ink-width-value",
+      text: formatWidth(width),
+      attr: { "aria-live": "polite" }
+    });
 
-    const presets = doc.createElement("div");
-    presets.className = "ink-width-presets";
-    presets.setAttribute("role", "group");
-    presets.setAttribute("aria-label", "Width presets");
+    const presets = this.element.createDiv({
+      cls: "ink-width-presets",
+      attr: { role: "group", "aria-label": "Width presets" }
+    });
     for (const choice of design.widths) {
-      const button = doc.createElement("button");
-      button.type = "button";
-      button.className = "ink-width-preset";
+      const button = presets.createEl("button", {
+        cls: "ink-width-preset",
+        attr: { type: "button" }
+      });
       button.classList.toggle("is-selected", Math.abs(width - choice.value) < 0.01);
       button.setAttribute("aria-pressed", button.classList.contains("is-selected") ? "true" : "false");
       button.dataset.inkFocus = `width-${choice.value}`;
       button.dataset.width = String(choice.value);
-      const sample = doc.createElement("span");
-      sample.className = `ink-width-preset-sample is-${this.tool}`;
+      const sample = button.createSpan({
+        cls: `ink-width-preset-sample is-${this.tool}`,
+        attr: { "aria-hidden": "true" }
+      });
       sample.style.setProperty("--ink-preset-width", `${previewWidth(this.tool, choice.value)}px`);
       sample.style.setProperty("--ink-preset-color", cssColor(color));
-      sample.setAttribute("aria-hidden", "true");
-      const label = doc.createElement("span");
-      label.textContent = choice.label;
-      button.append(sample, label);
+      button.createSpan({ text: choice.label });
       button.addEventListener("click", () => {
         this.applyWidth(choice.value);
         this.render();
       });
-      presets.appendChild(button);
     }
-    this.element.appendChild(presets);
 
-    const range = doc.createElement("input");
-    range.type = "range";
-    range.className = "ink-width-slider";
+    const range = this.element.createEl("input", {
+      cls: "ink-width-slider",
+      attr: { type: "range" }
+    });
     range.min = String(design.minimum);
     range.max = String(design.maximum);
     range.step = String(design.step);
@@ -350,7 +330,6 @@ export class ToolInspector {
         button.setAttribute("aria-pressed", selected ? "true" : "false");
       }
     });
-    this.element.appendChild(range);
     if (shouldRestoreFocus) {
       const controls = this.element.querySelectorAll<HTMLElement>("[data-ink-focus]");
       const focusTarget = Array.from(controls).find((control) => control.dataset.inkFocus === focusKey);
@@ -358,17 +337,15 @@ export class ToolInspector {
     }
   }
 
-  private sectionLabel(text: string): HTMLDivElement {
-    const label = this.element.ownerDocument.createElement("div");
-    label.className = "ink-inspector-section-label";
-    label.textContent = text;
-    return label;
+  private sectionLabel(parent: HTMLElement, text: string): HTMLDivElement {
+    return parent.createDiv({ cls: "ink-inspector-section-label", text });
   }
 
-  private selectionMark(): HTMLSpanElement {
-    const mark = this.element.ownerDocument.createElement("span");
-    mark.className = "ink-color-swatch-check";
-    mark.setAttribute("aria-hidden", "true");
+  private selectionMark(parent: HTMLElement): HTMLSpanElement {
+    const mark = parent.createSpan({
+      cls: "ink-color-swatch-check",
+      attr: { "aria-hidden": "true" }
+    });
     setIcon(mark, "check");
     return mark;
   }

@@ -19,11 +19,11 @@ export class InkEmbedManager {
     this.observer = new MutationObserver((mutations) => {
       this.removeDetachedPreviews();
       for (const mutation of mutations) {
-        if (mutation.target instanceof HTMLElement) {
+        if (mutation.target.instanceOf(HTMLElement)) {
           this.scan(mutation.target, this.sourcePathFor(mutation.target));
         }
         for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement) this.scan(node, this.sourcePathFor(node));
+          if (node.instanceOf(HTMLElement)) this.scan(node, this.sourcePathFor(node));
         }
       }
     });
@@ -112,33 +112,26 @@ class InkEmbedPreview {
     readonly file: TFile,
     private readonly getSettings: () => InkSettings
   ) {
-    const doc = container.ownerDocument;
-    this.shell = doc.createElement("div");
-    this.shell.className = "ink-embed-preview";
-    this.shell.tabIndex = 0;
+    this.shell = container.createDiv({ cls: "ink-embed-preview", attr: { tabindex: "0" } });
+    this.dryCanvas = this.shell.createEl("canvas", {
+      cls: "ink-embed-layer",
+      attr: { "aria-hidden": "true" }
+    });
+    this.wetCanvas = this.shell.createEl("canvas", {
+      cls: "ink-embed-layer",
+      attr: { "aria-hidden": "true" }
+    });
 
-    this.dryCanvas = doc.createElement("canvas");
-    this.dryCanvas.className = "ink-embed-layer";
-    this.dryCanvas.setAttribute("aria-hidden", "true");
-    this.shell.appendChild(this.dryCanvas);
-
-    this.wetCanvas = doc.createElement("canvas");
-    this.wetCanvas.className = "ink-embed-layer";
-    this.wetCanvas.setAttribute("aria-hidden", "true");
-    this.shell.appendChild(this.wetCanvas);
-
-    const openButton = doc.createElement("button");
-    openButton.type = "button";
-    openButton.className = "ink-embed-open clickable-icon";
-    openButton.setAttribute("aria-label", `Open ${file.basename}`);
-    openButton.setAttribute("title", "Open drawing");
+    const openButton = this.shell.createEl("button", {
+      cls: "ink-embed-open clickable-icon",
+      attr: { type: "button", "aria-label": `Open ${file.basename}`, title: "Open drawing" }
+    });
     setIcon(openButton, "maximize-2");
     openButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       void this.repository.open(this.file);
     });
-    this.shell.appendChild(openButton);
     this.shell.addEventListener("dblclick", (event) => {
       event.preventDefault();
       void this.repository.open(this.file);

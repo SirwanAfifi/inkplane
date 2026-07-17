@@ -1,8 +1,9 @@
 import esbuild from "esbuild";
+import { builtinModules } from "node:module";
 import process from "process";
-import builtins from "builtin-modules";
 
 const production = process.argv[2] === "production";
+const builtins = [...builtinModules, ...builtinModules.map((name) => `node:${name}`)];
 
 const context = await esbuild.context({
   banner: { js: "/* Inkplane for Obsidian */" },
