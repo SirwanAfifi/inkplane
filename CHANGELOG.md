@@ -2,6 +2,11 @@
 
 All notable changes to Inkplane are documented here.
 
+## 0.2.4 — 2026-07-17
+
+- Match Obsidian's accepted multi-asset provenance statement format.
+- Version release assets so every release receives an unambiguous attestation.
+
 ## 0.2.3 — 2026-07-17
 
 - Pin release attestations to an Obsidian-compatible `actions/attest` revision.
