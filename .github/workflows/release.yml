@@ -1,12 +1,25 @@
 name: Release
 
+# Triggered on push to main. When manifest.json's version does not yet have a
+# GitHub release, this builds, attests, tags, and publishes it.
+#
+# The workflow deliberately runs in a BRANCH context (refs/heads/main) rather
+# than being triggered by a tag push. Artifact attestations are signed with the
+# workflow's OIDC identity, and that identity embeds the triggering ref. Obsidian's
+# community-plugin verifier expects the signer identity to be a branch
+# (refs/heads/*); a tag-triggered run signs as refs/tags/<version>, which fails
+# Obsidian's verification ("attestation does not match this repository") even
+# though `gh attestation verify` accepts it. Creating the tag from within this
+# branch run keeps the attestation identity on refs/heads/main.
+
 on:
   push:
-    tags:
-      - "[0-9]+.[0-9]+.[0-9]+"
+    branches:
+      - main
+    paths:
+      - manifest.json
 
 permissions:
-  artifact-metadata: write
   attestations: write
   contents: write
   id-token: write
@@ -22,26 +35,53 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Read manifest version
+        id: version
+        run: echo "value=$(node -p "require('./manifest.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Skip if release already exists
+        id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.version.outputs.value }}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.version.outputs.value }} already exists; nothing to do."
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install dependencies
+        if: steps.exists.outputs.found == 'false'
         run: npm ci
       - name: Test and build
+        if: steps.exists.outputs.found == 'false'
         run: npm run check
-      - name: Validate tag
-        run: node scripts/check-release.mjs "$GITHUB_REF_NAME"
+      - name: Validate release metadata
+        if: steps.exists.outputs.found == 'false'
+        run: node scripts/check-release.mjs "${{ steps.version.outputs.value }}"
       # Obsidian's verifier expects a SLSA build-provenance statement covering
-      # the distributable code and stylesheet.
+      # the distributable assets. Attest all three published files.
       - name: Attest release assets
+        if: steps.exists.outputs.found == 'false'
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: |
             main.js
+            manifest.json
             styles.css
+      - name: Create tag
+        if: steps.exists.outputs.found == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
       - name: Publish release assets
+        if: steps.exists.outputs.found == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
         run: >-
-          gh release create "$GITHUB_REF_NAME"
+          gh release create "$VERSION"
           main.js manifest.json styles.css
-          --verify-tag
-          --title "Inkplane $GITHUB_REF_NAME"
+          --title "Inkplane $VERSION"
           --generate-notes
