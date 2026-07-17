@@ -2,6 +2,11 @@
 
 All notable changes to Inkplane are documented here.
 
+## 0.2.2 — 2026-07-17
+
+- Published an independent provenance attestation for each release asset.
+- Removed Obsidian 1.13-only API calls while retaining the declared Obsidian 1.7.2 minimum.
+
 ## 0.2.1 — 2026-07-17
 
 - Addressed Obsidian review recommendations across source code and styles.

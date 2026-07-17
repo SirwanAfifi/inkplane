@@ -28,13 +28,20 @@ jobs:
         run: npm run check
       - name: Validate tag
         run: node scripts/check-release.mjs "$GITHUB_REF_NAME"
-      - name: Attest release assets
+      # Keep each release asset in its own signed statement for verifiers that
+      # validate a single subject at a time.
+      - name: Attest main.js
         uses: actions/attest@v4
         with:
-          subject-path: |
-            main.js
-            manifest.json
-            styles.css
+          subject-path: main.js
+      - name: Attest manifest.json
+        uses: actions/attest@v4
+        with:
+          subject-path: manifest.json
+      - name: Attest styles.css
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}

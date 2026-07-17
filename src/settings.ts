@@ -130,7 +130,6 @@ export class InkSettingTab extends PluginSettingTab {
     if (key === "matchPenToTheme") {
       if (typeof value !== "boolean") return;
       this.applyPatch({ penColor: value ? "adaptive" : "#1f2937" });
-      this.update();
       return;
     }
     if (key === "drawingFolder" || key === "penColor" || key === "highlighterColor") {

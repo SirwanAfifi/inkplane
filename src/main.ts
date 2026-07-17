@@ -328,12 +328,8 @@ class ClearInkModal extends Modal {
       .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()))
       .addButton((button) => {
         button.setButtonText("Clear drawing");
-        if (typeof button.setDestructive === "function") {
-          button.setDestructive().setCta();
-        } else {
-          // Preserve destructive styling on supported Obsidian versions before 1.13.0.
-          button.buttonEl.addClasses(["mod-warning", "mod-cta"]);
-        }
+        button.setCta();
+        button.buttonEl.addClass("mod-warning");
         button.onClick(() => {
           this.onConfirm();
           this.close();
