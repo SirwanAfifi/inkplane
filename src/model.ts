@@ -245,6 +245,52 @@ export function hitTestStroke(stroke: InkStroke, point: Point2D, radius: number)
   return false;
 }
 
+export function eraseStrokeAt(stroke: InkStroke, point: Point2D, radius: number): InkStroke[] {
+  if (!hitTestStroke(stroke, point, radius)) return [stroke];
+
+  const eraseRadius = Math.max(0, radius) + stroke.width / 2;
+  const squareEraseRadius = eraseRadius * eraseRadius;
+  if (stroke.points.length === 1) return [];
+
+  const fragments: InkPoint[][] = [];
+  let currentFragment: InkPoint[] = [];
+  let erased = false;
+
+  const finishFragment = (): void => {
+    if (currentFragment.length > 0) fragments.push(currentFragment);
+    currentFragment = [];
+  };
+
+  for (let index = 1; index < stroke.points.length; index += 1) {
+    const start = stroke.points[index - 1];
+    const end = stroke.points[index];
+    const breakpoints = segmentCircleBreakpoints(start, end, point, eraseRadius);
+
+    for (let breakpointIndex = 1; breakpointIndex < breakpoints.length; breakpointIndex += 1) {
+      const from = breakpoints[breakpointIndex - 1];
+      const to = breakpoints[breakpointIndex];
+      if (to - from <= Number.EPSILON) continue;
+
+      const midpoint = interpolatePoint(start, end, (from + to) / 2);
+      if (distanceSquared(midpoint, point) > squareEraseRadius) {
+        appendDistinctPoint(currentFragment, interpolatePoint(start, end, from));
+        appendDistinctPoint(currentFragment, interpolatePoint(start, end, to));
+      } else {
+        erased = true;
+        finishFragment();
+      }
+    }
+  }
+  finishFragment();
+
+  if (!erased) return [stroke];
+  return fragments.map((points, index) => ({
+    ...stroke,
+    id: index === 0 ? stroke.id : createId(),
+    points
+  }));
+}
+
 export function pointInPolygon(point: Point2D, polygon: Point2D[]): boolean {
   if (polygon.length < 3) return false;
   let inside = false;
@@ -311,6 +357,55 @@ function distanceSquared(first: Point2D, second: Point2D): number {
   const dx = first.x - second.x;
   const dy = first.y - second.y;
   return dx * dx + dy * dy;
+}
+
+function segmentCircleBreakpoints(
+  start: Point2D,
+  end: Point2D,
+  center: Point2D,
+  radius: number
+): number[] {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const a = dx * dx + dy * dy;
+  if (a <= Number.EPSILON) return [0, 1];
+
+  const offsetX = start.x - center.x;
+  const offsetY = start.y - center.y;
+  const b = 2 * (offsetX * dx + offsetY * dy);
+  const c = offsetX * offsetX + offsetY * offsetY - radius * radius;
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant <= 0) return [0, 1];
+
+  const squareRoot = Math.sqrt(discriminant);
+  const first = (-b - squareRoot) / (2 * a);
+  const second = (-b + squareRoot) / (2 * a);
+  const breakpoints = [0, 1];
+  if (first > 0 && first < 1) breakpoints.push(first);
+  if (second > 0 && second < 1) breakpoints.push(second);
+  breakpoints.sort((left, right) => left - right);
+  return breakpoints;
+}
+
+function interpolatePoint(start: InkPoint, end: InkPoint, amount: number): InkPoint {
+  return {
+    x: interpolate(start.x, end.x, amount),
+    y: interpolate(start.y, end.y, amount),
+    pressure: interpolate(start.pressure, end.pressure, amount),
+    tiltX: interpolate(start.tiltX, end.tiltX, amount),
+    tiltY: interpolate(start.tiltY, end.tiltY, amount),
+    time: interpolate(start.time, end.time, amount)
+  };
+}
+
+function appendDistinctPoint(points: InkPoint[], point: InkPoint): void {
+  const previous = points[points.length - 1];
+  if (previous && distanceSquared(previous, point) <= Number.EPSILON) return;
+  points.push(point);
+}
+
+function interpolate(start: number, end: number, amount: number): number {
+  return start + (end - start) * amount;
 }
 
 function finiteOr(value: number, fallback: number): number {

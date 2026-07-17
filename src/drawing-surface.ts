@@ -5,7 +5,7 @@ import {
   combinedBounds,
   createInkPoint,
   createStroke,
-  hitTestStroke,
+  eraseStrokeAt,
   pointInBounds,
   removeSharpBacktracks,
   selectStrokesInPolygon,
@@ -16,13 +16,34 @@ import { applyPressureSensitivity, stabilizePointerPressure } from "./pressure";
 import { coalescedEvents } from "./pointer-samples";
 import { exportStrokesToSvg, InkRenderer, type InkRenderState } from "./render";
 import type { InkStore } from "./storage";
-import { ToolInspector, toolColor, toolWidth } from "./tool-inspector";
+import { ToolInspector, toolWidth } from "./tool-inspector";
 import type { InkDrawing, InkPoint, InkSettings, InkStroke, InkTool, Point2D } from "./types";
 
 const HISTORY_LIMIT = 75;
 const PALM_REJECTION_WINDOW_MS = 900;
 const MIN_ZOOM = 0.08;
 const MAX_ZOOM = 6;
+
+interface QuickColorChoice {
+  label: string;
+  value: string;
+}
+
+const PEN_QUICK_COLORS: QuickColorChoice[] = [
+  { label: "Match theme", value: "adaptive" },
+  { label: "Blue", value: "#2563eb" },
+  { label: "Green", value: "#16a34a" },
+  { label: "Yellow", value: "#facc15" },
+  { label: "Red", value: "#dc2626" }
+];
+
+const HIGHLIGHTER_QUICK_COLORS: QuickColorChoice[] = [
+  { label: "Yellow", value: "#facc15" },
+  { label: "Lime", value: "#a3e635" },
+  { label: "Cyan", value: "#22d3ee" },
+  { label: "Blue", value: "#60a5fa" },
+  { label: "Pink", value: "#f472b6" }
+];
 
 type GestureMode = "draw" | "erase" | "lasso" | "move-selection" | null;
 
@@ -46,7 +67,7 @@ export class DrawingSurface {
   private readonly redoButton: HTMLButtonElement;
   private readonly deleteButton: HTMLButtonElement;
   private readonly paletteButton: HTMLButtonElement;
-  private readonly paletteDot: HTMLSpanElement;
+  private readonly quickColorButtons: HTMLButtonElement[] = [];
   private readonly zoomButton: HTMLButtonElement;
   private readonly emptyState: HTMLDivElement;
   private readonly statusLabel: HTMLSpanElement;
@@ -124,29 +145,31 @@ export class DrawingSurface {
     this.toolbar.setAttribute("aria-label", "Ink tools");
     this.root.appendChild(this.toolbar);
 
-    this.startToolbarGroup("Drawing tools");
-    this.addToolButton("pen", "pen-tool", "Pen");
-    this.addToolButton("highlighter", "highlighter", "Highlighter");
-    this.addToolButton("eraser", "eraser", "Stroke eraser");
-    this.addToolButton("lasso", "lasso", "Lasso select");
-    this.addToolButton("pan", "hand", "Pan canvas");
-    this.paletteButton = this.addActionButton("sliders-horizontal", "Color and size", () => {
-      this.toolInspector.toggle(this.tool);
-    });
-    this.paletteButton.classList.add("ink-tool-style");
-    this.paletteButton.setAttribute("aria-haspopup", "dialog");
-    this.paletteButton.setAttribute("aria-expanded", "false");
-    this.paletteDot = doc.createElement("span");
-    this.paletteDot.className = "ink-tool-color-dot";
-    this.paletteDot.setAttribute("aria-hidden", "true");
-    this.paletteButton.appendChild(this.paletteDot);
-
-    this.startToolbarGroup("History");
+    this.startToolbarGroup("History", "ink-toolbar-history");
     this.undoButton = this.addActionButton("undo-2", "Undo ink", () => this.undo());
     this.redoButton = this.addActionButton("redo-2", "Redo ink", () => this.redo());
     this.deleteButton = this.addActionButton("trash-2", "Delete selection", () => this.deleteSelection());
 
-    this.startToolbarGroup("Canvas view");
+    this.startToolbarGroup("Drawing tools", "ink-toolbar-instruments");
+    this.addToolButton("pen", "pen-tool", "Pen");
+    this.addToolButton("highlighter", "highlighter", "Highlighter");
+    this.addToolButton("eraser", "eraser", "Eraser");
+    this.addToolButton("lasso", "lasso", "Lasso select");
+    this.addToolButton("pan", "hand", "Pan canvas");
+
+    this.startToolbarGroup("Quick colors", "ink-toolbar-colors");
+    for (let index = 0; index < PEN_QUICK_COLORS.length; index += 1) {
+      this.quickColorButtons.push(this.addQuickColorButton(index));
+    }
+    this.paletteButton = this.addActionButton("sliders-horizontal", "More colors and sizes", () => {
+      if (this.tool === "lasso" || this.tool === "pan") this.setTool("pen");
+      this.toolInspector.toggle(this.tool);
+    });
+    this.paletteButton.classList.add("ink-color-more");
+    this.paletteButton.setAttribute("aria-haspopup", "dialog");
+    this.paletteButton.setAttribute("aria-expanded", "false");
+
+    this.startToolbarGroup("Canvas view", "ink-toolbar-view");
     this.addActionButton("minus", "Zoom out", () => this.zoomBy(0.8));
     this.zoomButton = this.addTextButton("100%", "Fit drawing", () => this.fitToView());
     this.addActionButton("plus", "Zoom in", () => this.zoomBy(1.25));
@@ -177,8 +200,10 @@ export class DrawingSurface {
       this.root,
       () => this.settings,
       (patch) => this.applyToolSetting(patch),
-      () => this.updateToolbar()
+      () => this.updateToolbar(),
+      this.paletteButton
     );
+    this.toolbar.addEventListener("scroll", () => this.toolInspector.reposition(), { passive: true });
 
     host.replaceChildren(this.root);
     this.renderer = new InkRenderer(this.dryCanvas, this.wetCanvas, this.root);
@@ -193,6 +218,7 @@ export class DrawingSurface {
     this.root.addEventListener("keyup", this.handleKeyUp, { capture: true });
 
     this.resizeObserver = new ResizeObserver(() => {
+      this.toolInspector.reposition();
       if (this.shouldFit) this.fitToView();
       else {
         this.dryLayerDirty = true;
@@ -340,7 +366,33 @@ export class DrawingSurface {
     const button = this.addActionButton(icon, label, () => this.setTool(tool));
     button.dataset.tool = tool;
     button.setAttribute("aria-pressed", "false");
+    const indicator = this.toolbar.ownerDocument.createElement("span");
+    indicator.className = "ink-tool-selection-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+    button.appendChild(indicator);
     this.toolButtons.set(tool, button);
+  }
+
+  private addQuickColorButton(index: number): HTMLButtonElement {
+    const button = this.toolbar.ownerDocument.createElement("button");
+    button.type = "button";
+    button.className = "ink-quick-color";
+    button.dataset.colorIndex = String(index);
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", (event) => {
+      consumeEvent(event);
+      const targetTool = this.tool === "highlighter" ? "highlighter" : "pen";
+      const choice = this.quickColors(targetTool)[index];
+      if (!choice) return;
+      if (this.tool !== targetTool) this.setTool(targetTool);
+      this.applyToolSetting(targetTool === "pen"
+        ? { penColor: choice.value }
+        : { highlighterColor: choice.value });
+      this.updateToolbar();
+      this.root.focus({ preventScroll: true });
+    });
+    (this.toolbarGroup ?? this.toolbar).appendChild(button);
+    return button;
   }
 
   private addActionButton(
@@ -353,6 +405,7 @@ export class DrawingSurface {
     button.className = "ink-layer-tool clickable-icon";
     button.setAttribute("aria-label", label);
     button.setAttribute("title", label);
+    button.dataset.inkTooltip = label;
     try {
       setIcon(button, icon);
     } catch {
@@ -390,13 +443,17 @@ export class DrawingSurface {
     return button;
   }
 
-  private startToolbarGroup(label: string): void {
+  private startToolbarGroup(label: string, className = ""): void {
     const group = this.toolbar.ownerDocument.createElement("div");
-    group.className = "ink-toolbar-group";
+    group.className = `ink-toolbar-group ${className}`.trim();
     group.setAttribute("role", "group");
     group.setAttribute("aria-label", label);
     this.toolbar.appendChild(group);
     this.toolbarGroup = group;
+  }
+
+  private quickColors(tool: "pen" | "highlighter"): QuickColorChoice[] {
+    return tool === "highlighter" ? HIGHLIGHTER_QUICK_COLORS : PEN_QUICK_COLORS;
   }
 
   private applyToolSetting(patch: Partial<InkSettings>): void {
@@ -703,8 +760,16 @@ export class DrawingSurface {
 
   private eraseAt(point: Point2D): void {
     const radius = this.settings.eraserWidth / 2;
-    const nextStrokes = this.drawing.strokes.filter((stroke) => !hitTestStroke(stroke, point, radius));
-    if (nextStrokes.length !== this.drawing.strokes.length) {
+    const nextStrokes: InkStroke[] = [];
+    let changed = false;
+
+    for (const stroke of this.drawing.strokes) {
+      const fragments = eraseStrokeAt(stroke, point, radius);
+      if (fragments.length !== 1 || fragments[0] !== stroke) changed = true;
+      nextStrokes.push(...fragments);
+    }
+
+    if (changed) {
       this.drawing.strokes = nextStrokes;
       this.gestureChanged = true;
       this.dryLayerDirty = true;
@@ -731,16 +796,40 @@ export class DrawingSurface {
       const selected = tool === this.tool;
       button.classList.toggle("is-selected", selected);
       button.setAttribute("aria-pressed", selected ? "true" : "false");
+      const instrumentColor = tool === "pen"
+        ? this.settings.penColor
+        : tool === "highlighter"
+          ? this.settings.highlighterColor
+          : "adaptive";
+      button.style.setProperty(
+        "--ink-instrument-color",
+        instrumentColor === "adaptive" ? "var(--text-normal)" : instrumentColor
+      );
     }
     this.undoButton.disabled = this.undoStack.length === 0;
     this.redoButton.disabled = this.redoStack.length === 0;
     this.deleteButton.disabled = this.selectedIds.size === 0;
-    this.paletteButton.disabled = this.tool === "lasso" || this.tool === "pan";
     this.paletteButton.classList.toggle("is-selected", this.toolInspector.isOpen);
     this.paletteButton.setAttribute("aria-expanded", this.toolInspector.isOpen ? "true" : "false");
-    const color = toolColor(this.tool, this.settings);
-    this.paletteDot.style.setProperty("--ink-tool-color", color === "adaptive" ? "var(--text-normal)" : color);
-    this.paletteDot.classList.toggle("is-eraser", this.tool === "eraser");
+    for (const button of this.toolbar.querySelectorAll<HTMLButtonElement>("[data-ink-tooltip]")) {
+      if (this.toolInspector.isOpen) button.removeAttribute("title");
+      else if (button.dataset.inkTooltip) button.setAttribute("title", button.dataset.inkTooltip);
+    }
+    const colorTool = this.tool === "highlighter" ? "highlighter" : "pen";
+    const quickColors = this.quickColors(colorTool);
+    const activeColor = colorTool === "highlighter" ? this.settings.highlighterColor : this.settings.penColor;
+    for (const button of this.quickColorButtons) {
+      const choice = quickColors[Number(button.dataset.colorIndex)];
+      if (!choice) continue;
+      const selected = choice.value.toLowerCase() === activeColor.toLowerCase();
+      button.classList.toggle("is-selected", selected);
+      button.classList.toggle("is-adaptive", choice.value === "adaptive");
+      button.style.setProperty("--ink-quick-color", choice.value === "adaptive" ? "var(--text-normal)" : choice.value);
+      button.setAttribute("aria-label", choice.label);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+      button.dataset.inkTooltip = choice.label;
+      if (!this.toolInspector.isOpen) button.setAttribute("title", choice.label);
+    }
     this.zoomButton.textContent = `${Math.round(this.scale * 100)}%`;
     const width = toolWidth(this.tool, this.settings);
     const labels: Record<InkTool, string> = {

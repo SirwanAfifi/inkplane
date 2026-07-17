@@ -4,6 +4,7 @@ import {
   createInkPoint,
   createStroke,
   emptyDocument,
+  eraseStrokeAt,
   hitTestStroke,
   pointInPolygon,
   repairInkPointOrder,
@@ -64,6 +65,32 @@ describe("stroke editing geometry", () => {
   it("hits a stroke using both eraser and stroke radii", () => {
     expect(hitTestStroke(horizontalStroke, { x: 50, y: 15 }, 4)).toBe(true);
     expect(hitTestStroke(horizontalStroke, { x: 50, y: 30 }, 4)).toBe(false);
+  });
+
+  it("splits a stroke around the part touched by the eraser", () => {
+    const fragments = eraseStrokeAt(horizontalStroke, { x: 50, y: 10 }, 4);
+
+    expect(fragments).toHaveLength(2);
+    expect(fragments[0].points[fragments[0].points.length - 1].x).toBeCloseTo(44);
+    expect(fragments[1].points[0].x).toBeCloseTo(56);
+    expect(fragments.every((fragment) => fragment.color === horizontalStroke.color)).toBe(true);
+    expect(fragments.every((fragment) => fragment.width === horizontalStroke.width)).toBe(true);
+  });
+
+  it("trims only the touched end of a stroke", () => {
+    const fragments = eraseStrokeAt(horizontalStroke, { x: 10, y: 10 }, 4);
+
+    expect(fragments).toHaveLength(1);
+    expect(fragments[0]).not.toBe(horizontalStroke);
+    expect(fragments[0].points[0].x).toBeCloseTo(16);
+    expect(fragments[0].points[fragments[0].points.length - 1].x).toBeCloseTo(100);
+  });
+
+  it("keeps an untouched stroke unchanged", () => {
+    const fragments = eraseStrokeAt(horizontalStroke, { x: 50, y: 30 }, 4);
+
+    expect(fragments).toEqual([horizontalStroke]);
+    expect(fragments[0]).toBe(horizontalStroke);
   });
 
   it("selects strokes enclosed by a lasso", () => {

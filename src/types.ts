@@ -81,7 +81,7 @@ export const DEFAULT_SETTINGS: InkSettings = {
   palmRejection: true,
   allowFingerDrawing: false,
   allowMouseDrawing: true,
-  toolbarPosition: "top",
+  toolbarPosition: "bottom",
   drawingFolder: "Inkplane",
   defaultCanvasWidth: 1600,
   defaultCanvasHeight: 1200,
