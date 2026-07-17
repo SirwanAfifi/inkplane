@@ -9,9 +9,9 @@
 
 Inkplane gives handwriting and sketches their own dedicated space inside Obsidian. Every drawing is a portable `.inklayer` file in your vault: open it as an edge-to-edge canvas, draw naturally with Apple Pencil or another pen, and embed it in any note when you want it in context.
 
-![Inkplane infinite canvas in the Obsidian testing vault](docs/images/inkplane-canvas.jpeg)
+![Inkplane canvas beside an Obsidian note containing an embedded drawing](docs/images/inkplane-overview.png)
 
-<p align="center"><sub>A standalone Inkplane canvas in Obsidian, captured from the testing vault.</sub></p>
+<p align="center"><sub>Draw on an infinite canvas, then embed the result directly in any Obsidian note.</sub></p>
 
 ## Why Inkplane?
 
