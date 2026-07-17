@@ -2,6 +2,14 @@
 
 All notable changes to Inkplane are documented here.
 
+## 0.2.1 — 2026-07-17
+
+- Addressed Obsidian review recommendations across source code and styles.
+- Scoped drawing discovery to the configured Inkplane folder instead of enumerating the vault.
+- Added searchable settings for Obsidian 1.13 while preserving compatibility with older supported releases.
+- Added GitHub artifact attestations for release assets.
+- Updated the README with the latest installation guidance, privacy details, and product imagery.
+
 ## 0.2.0 — 2026-07-16
 
 - Rebranded Ink Layer as Inkplane to reflect the new standalone infinite-canvas experience.
