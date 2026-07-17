@@ -2,6 +2,10 @@
 
 All notable changes to Inkplane are documented here.
 
+## 0.2.5 — 2026-07-17
+
+- Republish the current Inkplane build as patch release 0.2.5.
+
 ## 0.2.4 — 2026-07-17
 
 - Match Obsidian's accepted multi-asset provenance statement format.
